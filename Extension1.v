@@ -175,7 +175,7 @@ Proof.
   try (apply E_LoopZero; reflexivity)).
 Qed.
 
-(* TODO: We should probably try to prove that our rule doesn't break the other rules, as well as its general correctness *)
+
 
 Theorem ceval_deterministic: forall c st st1 st2,
      st =[ c ]=> st1  ->
@@ -323,12 +323,55 @@ Proof.
   apply (H1 st'0 st'); try assumption.
   apply (H2 st st'0); assumption. Qed.
 
+Definition bassn b : Assertion :=
+  fun st => (beval st b = true).
 
-(*something ain't right here...
-Theorem hoare_loop : forall P e c t z st st',
-  {{fun _ => P st /\ (st t) = z /\ z > 0}} c;; t ::= t - 1 {{fun _ => P st' /\ st' t = (z - 1)}} ->
-  {{fun _ => P st /\ t = e}} LOOP e DO c END {{fun _ => P st' /\ (st' t) = 0}}.
-*)
+Lemma bexp_eval_true : forall b st,
+  beval st b = true -> (bassn b) st.
+Proof.
+  intros b st Hbe.
+  unfold bassn. assumption.  Qed.
+
+Lemma bexp_eval_false : forall b st,
+  beval st b = false -> ~ ((bassn b) st).
+Proof.
+  intros b st Hbe contra.
+  unfold bassn in contra.
+  rewrite -> contra in Hbe. inversion Hbe.  Qed.
+
+Theorem hoare_while : forall P b c,
+  {{fun st => P st /\ bassn b st}} c {{P}} ->
+  {{P}} WHILE b DO c END {{fun st => P st /\ ~ (bassn b st)}}.
+Proof.
+  intros P b c Hhoare st st' He HP.
+  (* Like we've seen before, we need to reason by induction
+     on [He], because, in the "keep looping" case, its hypotheses
+     talk about the whole loop instead of just [c]. *)
+  remember (WHILE b DO c END)%imp as wcom eqn:Heqwcom.
+  induction He;
+    try (inversion Heqwcom); subst; clear Heqwcom.
+  - (* E_WhileFalse *) 
+    split. assumption. apply bexp_eval_false. assumption.
+  - (* E_WhileTrue *)
+    apply IHHe2. reflexivity.
+    apply (Hhoare st st'). assumption.
+      split. assumption. apply bexp_eval_true. assumption.
+Qed.
+
+(*TODO*)
+Theorem hoare_loop : forall P e c t z,
+  {{fun st => P st /\ (st t) = z /\ z > 0}} c;; t ::= t - 1 {{fun st' => P st' /\ st' t = (z - 1)}} ->
+  {{fun st => P st /\ st t = e}} LOOP e DO c END {{fun st' => P st' /\ (st' t) = 0}}.
+
+Proof. 
+  intros. intros st st' cmd H'. remember (LOOP e DO c END)%imp as cmd'.
+  induction cmd; try (inversion Heqcmd'); subst; clear Heqcmd'.
+  - apply H'.
+  - apply (E_LoopMore st st' st'' e c)in H0 .
+    + (*If we disprove (LOOP pred e DO c END)%imp = (LOOP e DO c END)%imp, we have exfalso.*) admit.
+    + apply cmd1. 
+    + apply cmd2.
+    
 
 Theorem loop_trivial : forall P c e,
   {{P}} c {{P}} -> 
