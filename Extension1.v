@@ -358,46 +358,26 @@ Proof.
       split. assumption. apply bexp_eval_true. assumption.
 Qed.
 
+
 (*TODO*)
+
 Theorem hoare_loop : forall P e c t z,
-  {{fun st => P st /\ (st t) = z /\ z > 0}} c;; t ::= t - 1 {{fun st' => P st' /\ st' t = (z - 1)}} ->
-  {{fun st => P st /\ st t = e}} LOOP e DO c END {{fun st' => P st' /\ (st' t) = 0}}.
+  {{fun st => P st /\ (st t) = z /\ z > 0}} c;; t ::= t - 1 {{fun st => P st /\ st t = (z - 1)}} ->
+  {{fun st => P st /\ st t = e}} LOOP e DO c END {{fun st => P st /\ (st t) = 0}}.
+
+Proof.
+  intros. intros st st' cmd H'. induction e eqn:E.
+  - assert (st = st'). { eapply ceval_deterministic. -
 
 Proof. 
   intros. intros st st' cmd H'. remember (LOOP e DO c END)%imp as cmd'.
   induction cmd; try (inversion Heqcmd'); subst; clear Heqcmd'.
   - apply H'.
   - apply (E_LoopMore st st' st'' e c)in H0 .
-    + (*If we disprove (LOOP pred e DO c END)%imp = (LOOP e DO c END)%imp, we have exfalso.*) admit.
+    + 
+
     + apply cmd1. 
     + apply cmd2.
-    
-
-Theorem loop_trivial : forall P c e,
-  {{P}} c {{P}} -> 
-  {{P}} LOOP e DO c END {{P}}.
-
-(* | E_LoopZero : forall st a c,
-    a = 0 -> 
-    st =[ LOOP a DO c END ]=> st
-  | E_LoopMore : forall st st' st'' a c,
-    a > 0 ->
-    st =[ c ]=> st' -> 
-    st' =[ LOOP (pred a) DO c END ]=> st'' ->
-    st =[ LOOP a DO c END ]=> st''*)
-
-
-Proof.
-  intros. induction e.
-  - induction n. 
-  (* n = 0 *)  
-  + unfold hoare_triple. intros. remember 0 as a. apply (E_LoopZero st a c) in Heqa.
-  assert (Heq: st = st'). { apply ceval_deterministic with (CLoop a c) st. - apply Heqa. - apply H0. }
-  rewrite <- Heq. apply H1.
-  (* n > 0 *)  
-  + unfold hoare_triple. intros. unfold hoare_triple in IHn. unfold hoare_triple in H.
-  
-
 
 
 
