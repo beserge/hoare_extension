@@ -149,12 +149,13 @@ Inductive ceval : com -> state -> state -> Prop :=
       st' =[ WHILE b DO c END ]=> st'' ->
       st  =[ WHILE b DO c END ]=> st''
   | E_LoopZero : forall st a c,
-    a = 0 -> 
+    aeval st a = 0 -> 
     st =[ LOOP a DO c END ]=> st
-  | E_LoopMore : forall st st' st'' a c,
-    a > 0 ->
+  | E_LoopMore : forall st st' st'' a c v,
+      aeval st a = v ->
+      v > 0 ->
     st =[ c ]=> st' -> 
-    st' =[ LOOP (pred a) DO c END ]=> st'' ->
+    st' =[ LOOP (pred v) DO c END ]=> st'' ->
     st =[ LOOP a DO c END ]=> st''
 
   where "st =[ c ]=> st'" := (ceval c st st').
@@ -170,11 +171,17 @@ Qed.
 Example ex2: (X !-> 0; empty_st) =[ LOOP 4 DO X ::= X + 1 END ]=> (X !-> 4; X !-> 3; X !-> 2; X !-> 1; X !-> 0; empty_st).
 
 Proof.
-  repeat 
-  (try (eapply E_LoopMore; try apply le_plus_l; try (apply E_Ass; reflexivity)); 
-  try (apply E_LoopZero; reflexivity)).
-Qed.
+  admit.
+  
+(*   repeat  *)
+(*   (try (eapply E_LoopMore; try apply le_plus_l; try (apply E_Ass; reflexivity));  *)
+(*   try (apply E_LoopZero; reflexivity)). *)
+(* Qed. *)
 
+Example ex2: (X !-> 4; empty_st) =[ LOOP X DO X ::= X + 1 END ]=> (X !-> 8; X !-> 7; X !-> 6; X !-> 5; X !-> 4; empty_st).
+Proof.
+  admit.
+  
 (* TODO: We should probably try to prove that our rule doesn't break the other rules, as well as its general correctness *)
 
 Theorem ceval_deterministic: forall c st st1 st2,
