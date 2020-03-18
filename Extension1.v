@@ -369,8 +369,19 @@ Qed.
 
 (*TODO*)
 
-Theorem hoare_loop : forall P e c t z,
-  {{fun st => P st /\ (st t) = z /\ z > 0}} c;; t ::= t - 1 {{fun st => P st /\ st t = (z - 1)}} ->
+ex:   {{fun st => P st }} LOOP x DO Skip END {{fun st => P st}}.
+
+
+Theorem hoare_loop : forall P e c,
+  {{fun st => P st }} c {{fun st => P st }} ->
+  {{fun st => P st }} LOOP e DO c END {{fun st => P st}}.
+Proof.
+
+  
+
+
+Theorem hoare_loop : forall P e c t,
+  (forall z, {{fun st => P st /\ (st t) = z}} c;; t ::= t - 1 {{fun st => P st /\ st t = (z - 1)}}) ->
   {{fun st => P st /\ st t = e}} LOOP e DO c END {{fun st => P st /\ (st t) = 0}}.
 
 Proof.
