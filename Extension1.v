@@ -178,6 +178,7 @@ Proof.
 (*   try (apply E_LoopZero; reflexivity)). *)
 (* Qed. *)
 
+
 Example ex2: (X !-> 4; empty_st) =[ LOOP X DO X ::= X + 1 END ]=> (X !-> 8; X !-> 7; X !-> 6; X !-> 5; X !-> 4; empty_st).
 Proof.
   admit.
@@ -330,38 +331,61 @@ Proof.
   apply (H1 st'0 st'); try assumption.
   apply (H2 st st'0); assumption. Qed.
 
+Definition bassn b : Assertion :=
+  fun st => (beval st b = true).
 
-(*something ain't right here...
-Theorem hoare_loop : forall P e c t z st st',
-  {{fun _ => P st /\ (st t) = z /\ z > 0}} c;; t ::= t - 1 {{fun _ => P st' /\ st' t = (z - 1)}} ->
-  {{fun _ => P st /\ t = e}} LOOP e DO c END {{fun _ => P st' /\ (st' t) = 0}}.
-*)
+Lemma bexp_eval_true : forall b st,
+  beval st b = true -> (bassn b) st.
+Proof.
+  intros b st Hbe.
+  unfold bassn. assumption.  Qed.
 
-Theorem loop_trivial : forall P c e,
-  {{P}} c {{P}} -> 
-  {{P}} LOOP e DO c END {{P}}.
+Lemma bexp_eval_false : forall b st,
+  beval st b = false -> ~ ((bassn b) st).
+Proof.
+  intros b st Hbe contra.
+  unfold bassn in contra.
+  rewrite -> contra in Hbe. inversion Hbe.  Qed.
 
-(* | E_LoopZero : forall st a c,
-    a = 0 -> 
-    st =[ LOOP a DO c END ]=> st
-  | E_LoopMore : forall st st' st'' a c,
-    a > 0 ->
-    st =[ c ]=> st' -> 
-    st' =[ LOOP (pred a) DO c END ]=> st'' ->
-    st =[ LOOP a DO c END ]=> st''*)
+Theorem hoare_while : forall P b c,
+  {{fun st => P st /\ bassn b st}} c {{P}} ->
+  {{P}} WHILE b DO c END {{fun st => P st /\ ~ (bassn b st)}}.
+Proof.
+  intros P b c Hhoare st st' He HP.
+  (* Like we've seen before, we need to reason by induction
+     on [He], because, in the "keep looping" case, its hypotheses
+     talk about the whole loop instead of just [c]. *)
+  remember (WHILE b DO c END)%imp as wcom eqn:Heqwcom.
+  induction He;
+    try (inversion Heqwcom); subst; clear Heqwcom.
+  - (* E_WhileFalse *) 
+    split. assumption. apply bexp_eval_false. assumption.
+  - (* E_WhileTrue *)
+    apply IHHe2. reflexivity.
+    apply (Hhoare st st'). assumption.
+      split. assumption. apply bexp_eval_true. assumption.
+Qed.
 
+
+(*TODO*)
+
+Theorem hoare_loop : forall P e c t z,
+  {{fun st => P st /\ (st t) = z /\ z > 0}} c;; t ::= t - 1 {{fun st => P st /\ st t = (z - 1)}} ->
+  {{fun st => P st /\ st t = e}} LOOP e DO c END {{fun st => P st /\ (st t) = 0}}.
 
 Proof.
-  intros. induction e.
-  - induction n. 
-  (* n = 0 *)  
-  + unfold hoare_triple. intros. remember 0 as a. apply (E_LoopZero st a c) in Heqa.
-  assert (Heq: st = st'). { apply ceval_deterministic with (CLoop a c) st. - apply Heqa. - apply H0. }
-  rewrite <- Heq. apply H1.
-  (* n > 0 *)  
-  + unfold hoare_triple. intros. unfold hoare_triple in IHn. unfold hoare_triple in H.
-  
+  intros. intros st st' cmd H'. induction e eqn:E.
+  - assert (st = st'). { eapply ceval_deterministic. -
 
+Proof. 
+  intros. intros st st' cmd H'. remember (LOOP e DO c END)%imp as cmd'.
+  induction cmd; try (inversion Heqcmd'); subst; clear Heqcmd'.
+  - apply H'.
+  - apply (E_LoopMore st st' st'' e c)in H0 .
+    + 
+
+    + apply cmd1. 
+    + apply cmd2.
 
 
 
