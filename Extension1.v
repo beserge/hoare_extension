@@ -1,3 +1,4 @@
+
 Set Warnings "-notation-overridden,-parsing".
 
 From Coq Require Import Bool.Bool.
@@ -170,19 +171,20 @@ Qed.
 
 Example ex2: (X !-> 0; empty_st) =[ LOOP 4 DO X ::= X + 1 END ]=> (X !-> 4; X !-> 3; X !-> 2; X !-> 1; X !-> 0; empty_st).
 
-Proof.
-  admit.
-  
-(*   repeat  *)
-(*   (try (eapply E_LoopMore; try apply le_plus_l; try (apply E_Ass; reflexivity));  *)
-(*   try (apply E_LoopZero; reflexivity)). *)
-(* Qed. *)
+Proof.  
+  repeat
+   (try (eapply E_LoopMore; try reflexivity; try apply le_plus_l; try (apply E_Ass; reflexivity));  
+   try (apply E_LoopZero; reflexivity)). 
+ Qed. 
 
 
-Example ex2: (X !-> 4; empty_st) =[ LOOP X DO X ::= X + 1 END ]=> (X !-> 8; X !-> 7; X !-> 6; X !-> 5; X !-> 4; empty_st).
+Example ex3: (X !-> 4; empty_st) =[ LOOP X DO X ::= X + 1 END ]=> (X !-> 8; X !-> 7; X !-> 6; X !-> 5; X !-> 4; empty_st).
 Proof.
-  admit.
-  
+  repeat
+   (try (eapply E_LoopMore; try reflexivity; try apply le_plus_l; try (apply E_Ass; reflexivity));  
+   try (apply E_LoopZero; reflexivity)). 
+ Qed. 
+
 (* TODO: We should probably try to prove that our rule doesn't break the other rules, as well as its general correctness *)
 
 Theorem ceval_deterministic: forall c st st1 st2,
@@ -366,18 +368,53 @@ Proof.
       split. assumption. apply bexp_eval_true. assumption.
 Qed.
 
-
 (*TODO*)
+Lemma loop_skip : forall st,
+  forall n, st =[ LOOP n DO SKIP END ]=> st.
 
-ex:   {{fun st => P st }} LOOP x DO Skip END {{fun st => P st}}.
+Proof.
+  intros. induction (aeval st n) eqn:E.
+  - eapply E_LoopZero in E. apply E.
+  - apply IHn0. (* why the implication in IHn0? Don't we simply assume st =[ LOOP n DO SKIP END ]=> st?
+                    clearly via E,  aeval st n = n0 !=  aeval st n = S n0 *)
+
+
+Example ex4 : forall P X,  {{P}} LOOP X DO SKIP END {{P}}.
+
+Proof.
+  intros. intros st st' cmd H. induction (aeval st X0) eqn:E.
+  - assert (st = st'). eapply E_LoopZero in E.
+  { eapply ceval_deterministic. apply E. apply cmd. }
+  rewrite <- H0. apply H.
+  - eapply E_LoopMore in E.
+    + assert (st' = st). { eapply ceval_deterministic. apply cmd. apply E. }
+    rewrite H0. apply H.
+    + apply gt_Sn_O.
+    + apply E_Skip.
+    + simpl.  
+
+
+(*E_LoopMore : forall st st' st'' a c v,
+      aeval st a = v ->
+      v > 0 ->
+    st =[ c ]=> st' -> 
+    st' =[ LOOP (pred v) DO c END ]=> st'' ->
+    st =[ LOOP a DO c END ]=> st''*)
 
 
 Theorem hoare_loop : forall P e c,
-  {{fun st => P st }} c {{fun st => P st }} ->
-  {{fun st => P st }} LOOP e DO c END {{fun st => P st}}.
+  {{P}} c {{P}} ->
+  {{P}} LOOP e DO c END {{P}}.
 Proof.
-
-  
+  intros. intros st st' cmd H'. unfold hoare_triple in H.
+  induction (aeval st e) eqn:E.
+  - assert (st = st').
+    { eapply ceval_deterministic. apply (E_LoopZero st e c) in E. apply E. apply cmd. }
+    rewrite <- H0. apply H'.
+  - eapply E_LoopMore in E.
+    + admit.  
+    + apply gt_Sn_O.
+    + 
 
 
 Theorem hoare_loop : forall P e c t,
