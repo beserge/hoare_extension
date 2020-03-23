@@ -52,8 +52,10 @@ Inductive bexp : Type :=
 
 Definition state := total_map nat.
 
+(*
 Coercion AId : string >-> aexp.
 Coercion ANum : nat >-> aexp.
+ *)
 
 Fixpoint aeval (st : state) (a : aexp) : nat :=
   match a with
@@ -76,7 +78,7 @@ Fixpoint beval (st : state) (b : bexp) : bool :=
 
 Definition bool_to_bexp (b : bool) : bexp :=
   if b then BTrue else BFalse.
-Coercion bool_to_bexp : bool >-> bexp.
+(*Coercion bool_to_bexp : bool >-> bexp.*)
 
 Bind Scope imp_scope with aexp.
 Bind Scope imp_scope with bexp.
@@ -149,27 +151,27 @@ Inductive ceval : com -> state -> state -> Prop :=
       st  =[ c ]=> st' ->
       st' =[ WHILE b DO c END ]=> st'' ->
       st  =[ WHILE b DO c END ]=> st''
-  | E_LoopZero : forall st a c,
+  | E_LoopZero : forall (st:state) (a:aexp)  (c:com),
     aeval st a = 0 -> 
     st =[ LOOP a DO c END ]=> st
   | E_LoopMore : forall st st' st'' a c v,
       aeval st a = v ->
       v > 0 ->
     st =[ c ]=> st' -> 
-    st' =[ LOOP (pred v) DO c END ]=> st'' ->
+    st' =[ LOOP (ANum (pred v)) DO c END ]=> st'' ->
     st =[ LOOP a DO c END ]=> st''
 
   where "st =[ c ]=> st'" := (ceval c st st').
 
 
 
-Example ex1: forall x c, (x) =[ LOOP 0 DO c END ]=> (x).
+Example ex1: forall x c, (x) =[ LOOP (ANum 0) DO c END ]=> (x).
 
 Proof.
   intros. apply E_LoopZero. reflexivity.
 Qed.
 
-Example ex2: (X !-> 0; empty_st) =[ LOOP 4 DO X ::= X + 1 END ]=> (X !-> 4; X !-> 3; X !-> 2; X !-> 1; X !-> 0; empty_st).
+(*Example ex2: (X !-> 0; empty_st) =[ LOOP 4 DO X ::= X + 1 END ]=> (X !-> 4; X !-> 3; X !-> 2; X !-> 1; X !-> 0; empty_st).
 
 Proof.  
   repeat
@@ -184,7 +186,7 @@ Proof.
    (try (eapply E_LoopMore; try reflexivity; try apply le_plus_l; try (apply E_Ass; reflexivity));  
    try (apply E_LoopZero; reflexivity)). 
  Qed. 
-
+*)
 (* TODO: We should probably try to prove that our rule doesn't break the other rules, as well as its general correctness *)
 
 Theorem ceval_deterministic: forall c st st1 st2,
@@ -369,14 +371,43 @@ Proof.
 Qed.
 
 (*TODO*)
-Lemma loop_skip : forall st,
-  forall n, st =[ LOOP n DO SKIP END ]=> st.
+
+Lemma loop_skip :  forall (n:aexp) (st:state),
+  st =[ LOOP n DO SKIP END ]=> st.
 
 Proof.
-  intros. induction (aeval st n) eqn:E.
-  - eapply E_LoopZero in E. apply E.
-  - apply IHn0. (* why the implication in IHn0? Don't we simply assume st =[ LOOP n DO SKIP END ]=> st?
+  intro. induction n.
+  - intro. induction n.  
+    + eapply E_LoopZero. reflexivity.
+    + eapply E_LoopMore. 
+      apply E.
+  -  eapply E_LoopMore. apply E. apply gt_Sn_O.
+    apply E_Skip.     
+    simpl. 
+
+    apply IHn0. (* why the implication in IHn0? Don't we simply assume st =[ LOOP n DO SKIP END ]=> st?
                     clearly via E,  aeval st n = n0 !=  aeval st n = S n0 *)
+
+
+
+Lemma loop : forall  (v:nat) (n:aexp) (st:state) (c:com) , st =[ LOOP n DO c END ]=> st ->
+              aeval st n = v
+              -> st =[ LOOP (ANum v) DO c END ]=> st.
+Proof.
+  induction v.
+  - intros. eapply E_LoopZero;auto.
+  - induction n.
+    + intros. simpl in H0. rewrite H0 in H. apply H.
+    + intros.  eapply E_LoopMore in H.
+      ;auto.  apply gt_Sn_O.
+      apply E_Skip. 
+      simpl. apply IHv. apply H.
+      
+      simpl.   simpl in H0. rewrite H0 in H. apply H.
+    eapply E_LoopMore;auto.
+    apply gt_Sn_O. apply E_Skip. 
+    simpl. eapply IHv. apply H.
+    
 
 
 Example ex4 : forall P X,  {{P}} LOOP X DO SKIP END {{P}}.
