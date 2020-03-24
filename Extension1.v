@@ -372,80 +372,71 @@ Qed.
 
 (*TODO*)
 
-Lemma loop_skip :  forall (n:aexp) (st:state),
+
+Lemma loop_skip_ANum : forall n st, 
+   st =[ LOOP (ANum n) DO SKIP END ]=> st.
+
+Proof.
+  intros. induction n.
+  - eapply E_LoopZero. reflexivity.
+  - eapply E_LoopMore. reflexivity.
+    apply gt_Sn_O. apply E_Skip.
+    apply IHn.
+Qed.
+
+Lemma aexp_loop : forall c a st st',
+  st =[ LOOP ANum (aeval st a) DO c END ]=> st' <-> st =[ LOOP a DO c END ]=> st'.
+
+Proof.
+  intros. split. - intros. inversion H.
+  + subst. simpl in H4. eapply E_LoopZero in H4. apply H4.
+  + subst. simpl in H7. simpl in H3. remember (aeval st a).
+    apply Nat.eq_sym_iff in Heqn. eapply E_LoopMore in Heqn.
+    * apply Heqn.
+    * apply H3.
+    * apply H4.
+    * apply H7.
+  - intros. inversion H.
+    + subst. rewrite H4. eapply E_LoopZero. reflexivity.
+    + subst. remember (aeval st a). eapply E_LoopMore.
+      * apply Heqn.
+      * rewrite <- Heqn. apply H3.
+      * apply H4.
+      * simpl. rewrite <- Heqn. apply H7.
+Qed.
+
+Theorem loop_skip_general :  forall (n:aexp) (st:state),
   st =[ LOOP n DO SKIP END ]=> st.
 
 Proof.
-  intro. induction n.
-  - intro. induction n.  
-    + eapply E_LoopZero. reflexivity.
-    + eapply E_LoopMore. 
-      apply E.
-  -  eapply E_LoopMore. apply E. apply gt_Sn_O.
-    apply E_Skip.     
-    simpl. 
-
-    apply IHn0. (* why the implication in IHn0? Don't we simply assume st =[ LOOP n DO SKIP END ]=> st?
-                    clearly via E,  aeval st n = n0 !=  aeval st n = S n0 *)
-
+  intros. induction n eqn:E;
+  try (apply aexp_loop; apply loop_skip_ANum).
+Qed.
 
 
 Lemma loop : forall  (v:nat) (n:aexp) (st:state) (c:com) , st =[ LOOP n DO c END ]=> st ->
               aeval st n = v
               -> st =[ LOOP (ANum v) DO c END ]=> st.
-Proof.
-  induction v.
-  - intros. eapply E_LoopZero;auto.
-  - induction n.
-    + intros. simpl in H0. rewrite H0 in H. apply H.
-    + intros.  eapply E_LoopMore in H.
-      ;auto.  apply gt_Sn_O.
-      apply E_Skip. 
-      simpl. apply IHv. apply H.
-      
-      simpl.   simpl in H0. rewrite H0 in H. apply H.
-    eapply E_LoopMore;auto.
-    apply gt_Sn_O. apply E_Skip. 
-    simpl. eapply IHv. apply H.
-    
 
+Proof.
+  intros. rewrite <- H0. apply aexp_loop. apply H.
+Qed. 
 
 Example ex4 : forall P X,  {{P}} LOOP X DO SKIP END {{P}}.
 
 Proof.
-  intros. intros st st' cmd H. induction (aeval st X0) eqn:E.
-  - assert (st = st'). eapply E_LoopZero in E.
-  { eapply ceval_deterministic. apply E. apply cmd. }
-  rewrite <- H0. apply H.
-  - eapply E_LoopMore in E.
-    + assert (st' = st). { eapply ceval_deterministic. apply cmd. apply E. }
-    rewrite H0. apply H.
-    + apply gt_Sn_O.
-    + apply E_Skip.
-    + simpl.  
-
-
-(*E_LoopMore : forall st st' st'' a c v,
-      aeval st a = v ->
-      v > 0 ->
-    st =[ c ]=> st' -> 
-    st' =[ LOOP (pred v) DO c END ]=> st'' ->
-    st =[ LOOP a DO c END ]=> st''*)
+  intros P e st st' H H'. assert (st' = st).
+  { eapply ceval_deterministic. apply H. apply loop_skip_general. }
+  rewrite H0. apply H'.
+Qed.
 
 
 Theorem hoare_loop : forall P e c,
   {{P}} c {{P}} ->
   {{P}} LOOP e DO c END {{P}}.
 Proof.
-  intros. intros st st' cmd H'. unfold hoare_triple in H.
-  induction (aeval st e) eqn:E.
-  - assert (st = st').
-    { eapply ceval_deterministic. apply (E_LoopZero st e c) in E. apply E. apply cmd. }
-    rewrite <- H0. apply H'.
-  - eapply E_LoopMore in E.
-    + admit.  
-    + apply gt_Sn_O.
-    + 
+  intros. intros st st' cmd H'. 
+
 
 
 Theorem hoare_loop : forall P e c t,
