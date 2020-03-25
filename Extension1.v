@@ -414,9 +414,9 @@ Proof.
 Qed.
 
 
-Lemma loop : forall  (v:nat) (n:aexp) (st:state) (c:com) , st =[ LOOP n DO c END ]=> st ->
+Lemma loop : forall  (v:nat) (n:aexp) (st st':state) (c:com) , st =[ LOOP n DO c END ]=> st' ->
               aeval st n = v
-              -> st =[ LOOP (ANum v) DO c END ]=> st.
+              -> st =[ LOOP (ANum v) DO c END ]=> st'.
 
 Proof.
   intros. rewrite <- H0. apply aexp_loop. apply H.
@@ -431,12 +431,49 @@ Proof.
 Qed.
 
 
-Theorem hoare_loop : forall P e c,
+Lemma hoare_loop_ANum : forall P n c, 
+  {{P}} c {{P}} ->
+  {{P}} LOOP (ANum n) DO c END {{P}}.
+
+Proof.
+  intros. induction n. 
+    + intros st st' H' H0. assert (aeval st (ANum 0) = 0). reflexivity.
+    eapply E_LoopZero in H1. assert (st = st').
+    eapply ceval_deterministic. apply H1. apply H'. rewrite <- H2.
+    apply H0.
+    + unfold hoare_triple. intros.
+    unfold hoare_triple in H. unfold hoare_triple in IHn.
+    remember (aeval st (ANum (S n))). 
+    apply Nat.eq_sym_iff in Heqn0. inversion H0.
+    * subst. apply H1.
+    * subst. simpl in H9. eapply IHn. apply H9. eapply H.
+    { apply H6. }
+    { apply H1. }
+Qed.
+
+Theorem hoare_loop_simple : forall P e c,
   {{P}} c {{P}} ->
   {{P}} LOOP e DO c END {{P}}.
-Proof.
-  intros. intros st st' cmd H'. 
 
+(*TODO automate this proof, too repetitive*)
+
+Proof. 
+  intros.
+  induction e.
+  - apply hoare_loop_ANum. apply H.
+  - unfold hoare_triple. intros. apply aexp_loop in H0.
+    remember (aeval st (AId x)). eapply hoare_loop_ANum. apply H.
+    apply H0. apply H1.
+  - unfold hoare_triple. intros. apply aexp_loop in H0.
+    remember (aeval st (e1 + e2)). eapply hoare_loop_ANum. apply H.
+    apply H0. apply H1.
+  - unfold hoare_triple. intros. apply aexp_loop in H0.
+    remember (aeval st (e1 - e2)). eapply hoare_loop_ANum. apply H.
+    apply H0. apply H1.
+  - unfold hoare_triple. intros. apply aexp_loop in H0.
+    remember (aeval st (e1 * e2)). eapply hoare_loop_ANum. apply H.
+    apply H0. apply H1. 
+Qed.
 
 
 Theorem hoare_loop : forall P e c t,
