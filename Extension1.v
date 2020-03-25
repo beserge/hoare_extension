@@ -163,7 +163,10 @@ Inductive ceval : com -> state -> state -> Prop :=
 
   where "st =[ c ]=> st'" := (ceval c st st').
 
-
+(*
+st =[ LOOP a DO c END ]=> st' iff st=[ c;c;...;c] => st'
+where c is composed (eval st a) times.
+*)
 
 Example ex1: forall x c, (x) =[ LOOP (ANum 0) DO c END ]=> (x).
 
@@ -474,6 +477,17 @@ Proof.
     remember (aeval st (e1 * e2)). eapply hoare_loop_ANum. apply H.
     apply H0. apply H1. 
 Qed.
+
+
+Example ex5 : forall P X,  {{P}} LOOP X DO SKIP END {{P}}.
+
+(*
+ forall z. {{P /\ t=z}} c {{P /\ t=z-1}}.
+---------------------------------
+ {{P /\ t=e }} LOOP e DO c END {{P} /\ t=0 }.
+*)
+
+Example ex5 : forall P X,  {{X=n /\ Z=0}} LOOP X DO Z:=Z+1 END {{X=n /\ Z=n}}.
 
 
 Theorem hoare_loop : forall P e c t,
