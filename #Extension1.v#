@@ -501,15 +501,14 @@ Theorem hoare_loop : forall P e c t,
   {{fun st => P st /\ st t = e}} LOOP (ANum e) DO c END {{fun st => P st /\ (st t) = 0}}.*)
 
 
-(*   Still some little sort of issue with r.  *)
 Theorem hoare_loop : forall P e c t r,
   (forall z, {{fun st => P st /\ (st t) = z}} c;; t ::= (AId t) - (ANum 1) {{fun st' => P st' /\ st' t = (z - 1)}}) ->
-  {{fun st => P st /\ (aeval st e) = r}} LOOP e DO c END {{fun st' => P st' /\ r = 0}}.
+  {{fun st => P st /\ (aeval st e) = r}} LOOP e DO c END {{fun st' => P st' /\ (aeval st' e) = 0}}.
 
 Proof. 
   intros. unfold hoare_triple in H. unfold hoare_triple. intros.
-  inversion H0.
-  - subst. rewrite H6 in H1. split. apply H1. destruct H1. rewrite H2. auto.
+inversion H0.
+  - subst. rewrite H6 in H1. split. apply H1. destruct H1. rewrite H2. rewrite <- H2. auto.
   - subst. 
 
 
