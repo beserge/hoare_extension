@@ -375,6 +375,15 @@ Qed.
 
 (*TODO*)
 
+Lemma loop_zero: forall st st' c,
+  st =[ LOOP (ANum 0) DO c END ]=> st' ->
+  st= st'.
+
+Proof.
+ intros. assert (aeval st (ANum 0) = 0). reflexivity. 
+ eapply E_LoopZero in H0. eapply ceval_deterministic.
+ apply H0. apply H.
+Qed.
 
 Lemma loop_skip_ANum : forall n st, 
    st =[ LOOP (ANum n) DO SKIP END ]=> st.
@@ -440,10 +449,7 @@ Lemma hoare_loop_ANum : forall P n c,
 
 Proof.
   intros. induction n. 
-    + intros st st' H' H0. assert (aeval st (ANum 0) = 0). reflexivity.
-    eapply E_LoopZero in H1. assert (st = st').
-    eapply ceval_deterministic. apply H1. apply H'. rewrite <- H2.
-    apply H0.
+    + intros st st' H' H0. apply loop_zero in H'. rewrite <- H'. apply H0.
     + unfold hoare_triple. intros.
     unfold hoare_triple in H. unfold hoare_triple in IHn.
     remember (aeval st (ANum (S n))). 
@@ -485,13 +491,33 @@ Proof.
   intros. apply hoare_loop_simple. apply hoare_skip.
 Qed.
 
-(* Example ex5 : forall P X Y,  {}} LOOP X DO Y::=Y+1 END {{P}}. *)
+Theorem hoare_loop : forall a P c t ,
+    (forall z, {{P  [ t |-> (ANum z)]}}
+                 c
+               {{ P[ t |-> (ANum(z - 1))]}})
+    ->
+    {{P [  t |-> (ANum a) ]}}
+      LOOP (ANum a) DO c END
+    {{P [t |-> (ANum 0)]}}.
 
-(* Proof. *)
-(*   intros. apply hoare_loop_simple. apply hoare_skip. *)
-(* Qed. *)
+Proof.
+  intros a. induction a.
+  - intros. unfold hoare_triple. intros. apply loop_zero in H0. rewrite <- H0. apply H1.
+  - intros. unfold hoare_triple. intros. inversion H0; subst.
+    + inversion H6.
+    + simpl in H9. eapply H in H6. apply IHa in H. unfold hoare_triple in H. eapply H.
+      * apply H9.
+      * apply H6 in H1. simpl in H1. rewrite Nat.sub_0_r in H1. apply H1.
+Qed.
 
 
+Example ex6 : forall n P (st st':state) ,  
+{{P [Z |-> (ANum 0)]}} 
+LOOP (ANum n) DO Z ::= (AId Z) + (ANum 1) END 
+{{P [Z |-> (ANum n)]}}.
+
+Proof.
+  intros. Admitted.
 
 (*
  forall z. {{P /\ t=z}} c {{P /\ t=z-1}}.
@@ -499,81 +525,14 @@ Qed.
  {{P /\ t=e }} LOOP e DO c END {{P} /\ t=0 }.
 *)
 
+
 (*
-Example ex6 : forall X n (st st':state) ,  {{fun st => X = n /\ st Z = 0}} LOOP (X) DO Z ::= (AId Z) + (ANum 1) END {{fun st' => X = n /\ st Z = aeval st n}}.
-*)
-
-(*  
-Theorem hoare_loop : forall P e c t,
-  (forall z, {{fun st => P st /\ (st t) = z}} c;; t ::= (AId t) - (ANum 1) {{fun st => P st /\ st t = (z - 1)}}) ->
-  {{fun st => P st /\ st t = e}} LOOP (ANum e) DO c END {{fun st => P st /\ (st t) = 0}}.*)
-
-Lemma hoare_loop_aux: forall a c v st,
-aeval st (ANum a) = v ->
-(forall st_k ,
-                     exists st_k', 
-       st_k  =[ c ]=> st_k' )->
-
- exists st', st =[ LOOP (ANum a) DO c END ]=> st'.
-Proof.
-intros.
-induction a.
-- exists st. eapply E_LoopZero. auto.
-- eexists. eapply E_LoopMore.
-  + apply H. 
-  + inversion H. simpl. admit.
-  + remember (H0 st) . inversion Heqe. destruct e.
-    admit.
-  + inversion H. 
-simpl. eapply IHa.
-
-
-Lemma hoare_loop_aux: forall a c v st,
-aeval st (ANum a) = v ->
-(forall k st_k t,  k <= v ->
-                     exists st_k', 
-       (t !-> k ; st_k)  =[
-         c;;  t ::= (AId t) - (ANum 1)
-       ]=> ( t!->k-1 ;st_k') )->
-
- exists st', st =[ LOOP (ANum a) DO c END ]=> st'.
-Proof.
-intros.
-induction a.
-- exists st. eapply E_LoopZero. auto.
-- eexists. eapply E_LoopMore.
-  + apply H. 
-  + inversion H. simpl. admit.
-  +  
-    
 forall st_k, k<= 4
 st_k[t->k]  X:=X+1;; t=t-1 st_k'[t->k-1]
   
 st  LOOP 4 DO X:=X+1 END st'
 
 
-st X:=X+1 st_k1 X::X+1 st_k2 X:=X+1 st_k3  X:=X+1 st_k4=st' 
-
-
-                     
-Theorem hoare_loop : forall P e c t r,
-    (forall z, {{fun st => P st /\ (st t) = z}}
-                 c;; t ::= (AId t) - (ANum 1)
-               {{fun st' => P st' /\ st' t = (z - 1)}})
-    ->
-    {{fun st => P st /\ (st t) = (aeval st e) }}
-      LOOP e DO c END
-    {{fun st' => P st' /\ (aeval st' e) = 0}}.
-
-Proof. 
-  intros. unfold hoare_triple in H. unfold hoare_triple. intros.
-  inversion H0.
-  - subst. rewrite H6 in H1. split. apply H1. destruct H1. rewrite H2. rewrite <- H2. auto.
-  - subst. 
-
-
-
-
-
+st X:=X+1 st_k1 X::X+1 st_k2 X:=X+1 st_k3  X:=X+1 st_k4=st' *)
 
 
