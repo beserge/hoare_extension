@@ -510,15 +510,6 @@ Proof.
       * apply H6 in H1. simpl in H1. rewrite Nat.sub_0_r in H1. apply H1.
 Qed.
 
-
-Example ex6 : forall n P (st st':state) ,  
-{{P [Z |-> (ANum 0)]}} 
-LOOP (ANum n) DO Z ::= (AId Z) + (ANum 1) END 
-{{P [Z |-> (ANum n)]}}.
-
-Proof.
-  intros. Admitted.
-
 (*
  forall z. {{P /\ t=z}} c {{P /\ t=z-1}}.
 ---------------------------------
@@ -534,5 +525,199 @@ st  LOOP 4 DO X:=X+1 END st'
 
 
 st X:=X+1 st_k1 X::X+1 st_k2 X:=X+1 st_k3  X:=X+1 st_k4=st' *)
+
+
+(*Decorations*)
+
+(*What kinds of decorations might loop need? I'm sure they're similar to while, so they can be the same for now *)
+(* Could we make it so we actually update the variable?? This would simplify things I believe *)
+
+
+Inductive dcom : Type :=
+  | DCSkip :  Assertion -> dcom
+  | DCSeq : dcom -> dcom -> dcom
+  | DCAsgn : string -> aexp ->  Assertion -> dcom
+  | DCIf : bexp ->  Assertion -> dcom ->  Assertion -> dcom -> Assertion-> dcom
+  | DCWhile : bexp -> Assertion -> dcom -> Assertion -> dcom
+  | DCLoop  : aexp -> Assertion -> dcom -> Assertion -> dcom      (* New *)  
+  | DCPre : Assertion -> dcom -> dcom
+  | DCPost : dcom -> Assertion -> dcom.
+
+Inductive decorated : Type :=
+  | Decorated : Assertion -> dcom -> decorated.
+
+Delimit Scope default with default.
+
+Notation "'SKIP' {{ P }}"
+      := (DCSkip P)
+      (at level 10) : dcom_scope.
+
+Notation "l '::=' a {{ P }}"
+      := (DCAsgn l a P)
+      (at level 60, a at next level) : dcom_scope.
+Notation "'WHILE' b 'DO' {{ Pbody }} d 'END' {{ Ppost }}"
+      := (DCWhile b Pbody d Ppost)
+      (at level 80, right associativity) : dcom_scope.
+
+Notation "'LOOP' a 'DO' {{ Pbody }} d 'END' {{ Ppost }}"      (* New *)
+  := (DCLoop a Pbody d Ppost)
+  (at level 80, right associativity) : dcom_scope.
+
+Notation "'TEST' b 'THEN' {{ P }} d 'ELSE' {{ P' }} d' 'FI' {{ Q }}"
+      := (DCIf b P d P' d' Q)
+      (at level 80, right associativity)  : dcom_scope.
+Notation "'->>' {{ P }} d"
+      := (DCPre P d)
+      (at level 90, right associativity)  : dcom_scope.
+Notation "d '->>' {{ P }}"
+      := (DCPost d P)
+      (at level 80, right associativity)  : dcom_scope.
+Notation " d ;; d' "
+      := (DCSeq d d')
+      (at level 80, right associativity)  : dcom_scope.
+Notation "{{ P }} d"
+      := (Decorated P d)
+      (at level 90)  : dcom_scope.
+
+Delimit Scope dcom_scope with dcom.
+Open Scope dcom_scope.
+
+Example dec0 :=
+  SKIP {{ fun st => True }}.
+Example dec1 :=
+  WHILE (BTrue) DO {{ fun st => True }} SKIP {{ fun st => True }} END
+  {{ fun st => True }}.
+Set Printing All.
+
+Example dec_while : decorated :=
+  {{ fun st => True }} 
+  WHILE ~(AId X = ANum 0)
+  DO
+    {{ fun st => True /\ st X <> 0}}
+    X ::= AId X - ANum 1
+    {{ fun _ => True }}
+  END
+  {{ fun st => True /\ st X = 0}} ->>
+  {{ fun st => st X = 0 }}.
+
+(** It is easy to go from a [dcom] to a [com] by erasing all
+    annotations. *)
+
+Fixpoint extract (d : dcom) : com :=
+  match d with
+  | DCSkip _           => SKIP
+  | DCSeq d1 d2        => (extract d1 ;; extract d2)
+  | DCAsgn X a _       => X ::= a
+  | DCIf b _ d1 _ d2 _ => TEST b THEN extract d1 ELSE extract d2 FI
+  | DCWhile b _ d _    => WHILE b DO extract d END
+  | DCLoop  a _ d _    => CLoop a (extract d)      (* New *)
+  | DCPre _ d          => extract d
+  | DCPost d _         => extract d
+  end.
+
+Definition extract_dec (dec : decorated) : com :=
+  match dec with
+  | Decorated P d => extract d
+  end.
+
+Fixpoint post (d : dcom) : Assertion :=
+  match d with
+  | DCSkip P                => P
+  | DCSeq d1 d2             => post d2
+  | DCAsgn X a Q            => Q
+  | DCIf  _ _ d1 _ d2 Q     => Q
+  | DCWhile b Pbody c Ppost => Ppost
+  | DCLoop  a PBody c Ppost => Ppost (* New *)
+  | DCPre _ d               => post d
+  | DCPost c Q              => Q
+  end.
+
+Definition pre_dec (dec : decorated) : Assertion :=
+  match dec with
+  | Decorated P d => P
+  end.
+
+Definition post_dec (dec : decorated) : Assertion :=
+  match dec with
+  | Decorated P d => post d
+  end.
+
+Definition dec_correct (dec : decorated) :=
+  {{pre_dec dec}} (extract_dec dec) {{post_dec dec}}.
+
+(* TODO *)
+
+
+(** ** Extracting Verification Conditions *)
+
+Fixpoint verification_conditions (P : Assertion) (d : dcom) : Prop :=
+  match d with
+  | DCSkip Q =>
+      (P ->> Q)
+  | DCSeq d1 d2 =>
+      verification_conditions P d1
+      /\ verification_conditions (post d1) d2
+  | DCAsgn X a Q =>
+      (P ->> Q [X |-> a])
+  | DCIf b P1 d1 P2 d2 Q =>
+      ((fun st => P st /\ bassn b st) ->> P1)
+      /\ ((fun st => P st /\ ~ (bassn b st)) ->> P2)
+      /\ (post d1 ->> Q) /\ (post d2 ->> Q)
+      /\ verification_conditions P1 d1
+      /\ verification_conditions P2 d2
+  | DCWhile b Pbody d Ppost =>
+      (* post d is the loop invariant and the initial
+         precondition *)
+      (P ->> post d)
+      /\ ((fun st => post d st /\ bassn b st) ->> Pbody)
+      /\ ((fun st => post d st /\ ~(bassn b st)) ->> Ppost)
+      /\ verification_conditions Pbody d
+  | DCLoop a Pbody d Ppost =>               (* New *)
+    
+  | DCPre P' d =>
+      (P ->> P') /\ verification_conditions P' d
+  | DCPost d Q =>
+      verification_conditions P d /\ (post d ->> Q)
+  end.
+
+Theorem verification_correct : forall d P,
+  verification_conditions P d -> {{P}} (extract d) {{post d}}.
+Proof.
+  induction d; intros P H; simpl in *.
+  - (* Skip *)
+    eapply hoare_consequence_pre.
+      apply hoare_skip.
+      assumption.
+  - (* Seq *)
+    destruct H as [H1 H2].
+    eapply hoare_seq.
+      apply IHd2. apply H2.
+      apply IHd1. apply H1.
+  - (* Asgn *)
+    eapply hoare_consequence_pre.
+      apply hoare_asgn.
+      assumption.
+  - (* If *)
+    destruct H as [HPre1 [HPre2 [Hd1 [Hd2 [HThen HElse]]]]].
+    apply IHd1 in HThen. clear IHd1.
+    apply IHd2 in HElse. clear IHd2.
+    apply hoare_if.
+      + eapply hoare_consequence_post with (Q':=post d1); eauto.
+         eapply hoare_consequence_pre; eauto.
+      + eapply hoare_consequence_post with (Q':=post d2); eauto.
+         eapply hoare_consequence_pre; eauto.
+  - (* While *)
+    destruct H as [Hpre [Hbody1 [Hpost1  Hd]]].
+    eapply hoare_consequence_pre; eauto.
+    eapply hoare_consequence_post; eauto.
+    apply hoare_while.
+    eapply hoare_consequence_pre; eauto.
+  - (* Pre *)
+    destruct H as [HP Hd].
+    eapply hoare_consequence_pre. apply IHd. apply Hd. assumption.
+  - (* Post *)
+    destruct H as [Hd HQ].
+    eapply hoare_consequence_post. apply IHd. apply Hd. assumption.
+Qed.
 
 
