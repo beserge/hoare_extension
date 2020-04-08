@@ -494,7 +494,7 @@ Qed.
 Theorem hoare_loop : forall a P c t ,
     (forall z, {{P  [ t |-> (ANum z)]}}
                  c
-               {{ P[ t |-> (ANum(z - 1))]}})
+               {{P  [ t |-> (ANum(z - 1))]}})
     ->
     {{P [  t |-> (ANum a) ]}}
       LOOP (ANum a) DO c END
@@ -532,6 +532,7 @@ st X:=X+1 st_k1 X::X+1 st_k2 X:=X+1 st_k3  X:=X+1 st_k4=st' *)
 (*What kinds of decorations might loop need? I'm sure they're similar to while, so they can be the same for now *)
 (* Could we make it so we actually update the variable?? This would simplify things I believe *)
 
+(*forall r. {{P }} c {{Q}} : Nat -> (Assertion -> dcom ) *)
 
 Inductive dcom : Type :=
   | DCSkip :  Assertion -> dcom
@@ -539,7 +540,7 @@ Inductive dcom : Type :=
   | DCAsgn : string -> aexp ->  Assertion -> dcom
   | DCIf : bexp ->  Assertion -> dcom ->  Assertion -> dcom -> Assertion-> dcom
   | DCWhile : bexp -> Assertion -> dcom -> Assertion -> dcom
-  | DCLoop  : aexp -> Assertion -> dcom -> Assertion -> dcom      (* New *)  
+  | DCLoop  : aexp -> (nat -> Assertion * Assertion) -> dcom -> Assertion  -> dcom      (* New *)  
   | DCPre : Assertion -> dcom -> dcom
   | DCPost : dcom -> Assertion -> dcom.
 
@@ -559,8 +560,8 @@ Notation "'WHILE' b 'DO' {{ Pbody }} d 'END' {{ Ppost }}"
       := (DCWhile b Pbody d Ppost)
       (at level 80, right associativity) : dcom_scope.
 
-Notation "'LOOP' a 'DO' {{ Pbody }} d 'END' {{ Ppost }}"      (* New *)
-  := (DCLoop a Pbody d Ppost)
+Notation "'LOOP' a 'DO'  {{ Pbodyin }} d 'WITH' {{ Pbodyout }} 'END' {{ Ppost }}"      (* New *)
+  := (DCLoop a (fun z => (Pbodyin z, Pbodyout z)) d Ppost)
   (at level 80, right associativity) : dcom_scope.
 
 Notation "'TEST' b 'THEN' {{ P }} d 'ELSE' {{ P' }} d' 'FI' {{ Q }}"
@@ -587,6 +588,10 @@ Example dec0 :=
 Example dec1 :=
   WHILE (BTrue) DO {{ fun st => True }} SKIP {{ fun st => True }} END
   {{ fun st => True }}.
+Example dec2 :=
+  LOOP (ANum(4)) DO {{fun z => (fun st => True) }} (SKIP {{ fun st => True }}) WITH {{ fun z => (fun st => True)}}  END
+  {{ fun st => True }}.
+
 Set Printing All.
 
 Example dec_while : decorated :=
@@ -599,6 +604,22 @@ Example dec_while : decorated :=
   END
   {{ fun st => True /\ st X = 0}} ->>
   {{ fun st => st X = 0 }}.
+
+Example dec_loop : decorated :=
+  {{ fun st => True }}
+    X::= ANum 0
+  {{ fun st => True }} 
+  LOOP (ANum 4)
+  DO
+    {{ fun z => (fun st => st X + st T = 4  /\ st T = z)}}
+    X ::= AId X + ANum 1
+    {{  fun st => st X + st T = 4  /\ st T = z-1}}
+    WITH
+    {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}                       
+  END
+  {{ fun st => st X = 4 }}
+.
+
 
 (** It is easy to go from a [dcom] to a [com] by erasing all
     annotations. *)
