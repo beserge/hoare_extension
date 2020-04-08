@@ -90,6 +90,8 @@ Definition W : string := "W".
 Definition X : string := "X".
 Definition Y : string := "Y".
 Definition Z : string := "Z".
+Definition T : string := "T".
+
 
 Notation "x + y" := (APlus x y) (at level 50, left associativity) : imp_scope.
 Notation "x - y" := (AMinus x y) (at level 50, left associativity) : imp_scope.
@@ -606,14 +608,12 @@ Example dec_while : decorated :=
   {{ fun st => st X = 0 }}.
 
 Example dec_loop : decorated :=
-  {{ fun st => True }}
-    X::= ANum 0
   {{ fun st => True }} 
-  LOOP (ANum 4)
+  LOOP (ANum(4))
   DO
     {{ fun z => (fun st => st X + st T = 4  /\ st T = z)}}
     X ::= AId X + ANum 1
-    {{  fun st => st X + st T = 4  /\ st T = z-1}}
+    {{  fun st => st X + st T = 4  /\ st T = 1}}
     WITH
     {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}                       
   END
