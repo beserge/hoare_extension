@@ -621,6 +621,22 @@ Example dec_loop : decorated :=
 .
 
 
+Example dec_loop : decorated :=
+  {{ fun st => True }} 
+  X ::= AId X + ANum 1
+  {{ fun st => True }} 
+  LOOP (ANum(4))
+  DO
+    {{ fun z => (fun st => st X + st T = 4  /\ st T = z)}}
+    X ::= AId X + ANum 1
+    {{  fun st => st X + st T = 4  /\ st T = 1}}
+    WITH
+    {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}                       
+  END
+  {{ fun st => st X = 4 }}
+.
+
+
 (** It is easy to go from a [dcom] to a [com] by erasing all
     annotations. *)
 
