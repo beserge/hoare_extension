@@ -624,11 +624,7 @@ Inductive dcom : Type :=
   | DCAsgn : string -> aexp ->  Assertion -> dcom
   | DCIf : bexp ->  Assertion -> dcom ->  Assertion -> dcom -> Assertion-> dcom
   | DCWhile : bexp -> Assertion -> dcom -> Assertion -> dcom
-<<<<<<< HEAD
   | DCLoop  : aexp -> Assertion ->  dcom -> Assertion  -> dcom      (* New *)  
-=======
-  | DCLoop  : aexp -> (nat -> Assertion * Assertion) -> dcom -> Assertion  -> dcom 
->>>>>>> 54ea4f19279694efd94ebc31f5abb83c21027359
   | DCPre : Assertion -> dcom -> dcom
   | DCPost : dcom -> Assertion -> dcom.
                                     
@@ -637,7 +633,7 @@ Inductive    decorated : Type :=
 
 
 
-Definition prog1 :=
+(*Definition prog1 :=
 ( Decorated (fun st => True /\ st T = 4)
             (DCLoop (ANum 4)
                     (fun st => st X + st T = 4 )
@@ -651,7 +647,7 @@ Definition prog1 :=
     (fun st => st X + st T= 4 /\ st T= 0)
     )
 ).
-
+*)
 Delimit Scope default with default.
 
 Notation "'SKIP' {{  P  }}"
@@ -699,11 +695,8 @@ Example dec2 :=
   LOOP (ANum(4)) DO {{fun st => True}}  SKIP {{ fun st => True }}   END
   {{ fun st => True }}.
 
-<<<<<<< HEAD
-=======
 
 Set Printing All.
->>>>>>> 54ea4f19279694efd94ebc31f5abb83c21027359
 
 Example dec_while : decorated :=
   {{ fun st => True }} 
@@ -717,23 +710,12 @@ Example dec_while : decorated :=
   {{ fun st => st X = 0 }}.
 
 Example dec_loop : decorated :=
-<<<<<<< HEAD
     {{ fun st => st X + st T = 4 }}
       LOOP (ANum(4))
       DO
        {{fun st => st X + st T = 4  }}
       X ::= AId X + ANum 1
       {{  fun st => st X + st T = 4  }}
-=======
-  {{ fun st => True }} 
-  LOOP (ANum(4))
-  DO
-    {{ fun z => (fun st => st X + st T = 4  /\ st T = z)}}
-    X ::= AId X + ANum 1
-    {{  fun st => st X + st T = 4  /\ st T = 1}}
-    WITH
-    {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}
->>>>>>> 54ea4f19279694efd94ebc31f5abb83c21027359
   END
     {{ fun st => st X + st T = 4  }}                       
 .
@@ -745,8 +727,6 @@ Example seq_dec (z:nat) : decorated :=
       T ::= AId T - ANum 1
       {{  fun st => st X + st T = 4  /\ st T = z-1}}
 .
-
-<<<<<<< HEAD
 
 Example dec_loop_complete : decorated :=
     {{ fun st => st X + st T = 4}}
@@ -762,7 +742,6 @@ Example dec_loop_complete : decorated :=
 .
 
 Set Printing All.
-=======
 (* Multiplication *)
 (*
 {True}
