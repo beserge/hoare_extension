@@ -9,6 +9,7 @@ From Coq Require Import omega.Omega.
 From Coq Require Import Lists.List.
 From Coq Require Import Strings.String.
 Import ListNotations.
+Require Import Maps. 
 
 (*MAPS *)
 Definition total_map (A : Type) := string -> A.
@@ -356,6 +357,26 @@ Proof.
   unfold bassn in contra.
   rewrite -> contra in Hbe. inversion Hbe.  Qed.
 
+
+Theorem hoare_if : forall P Q b c1 c2,
+  {{fun st => P st /\ bassn b st}} c1 {{Q}} ->
+  {{fun st => P st /\ ~ (bassn b st)}} c2 {{Q}} ->
+  {{P}} TEST b THEN c1 ELSE c2 FI {{Q}}.
+Proof.
+  intros P Q b c1 c2 HTrue HFalse st st' HE HP.
+  inversion HE; subst.
+  - (* b is true *)
+    apply (HTrue st st').
+      assumption.
+      split. assumption.
+      apply bexp_eval_true. assumption.
+  - (* b is false *)
+    apply (HFalse st st').
+      assumption.
+      split. assumption.
+      apply bexp_eval_false. assumption. Qed.
+
+
 Theorem hoare_while : forall P b c,
   {{fun st => P st /\ bassn b st}} c {{P}} ->
   {{P}} WHILE b DO c END {{fun st => P st /\ ~ (bassn b st)}}.
@@ -493,6 +514,7 @@ Proof.
   intros. apply hoare_loop_simple. apply hoare_skip.
 Qed.
 
+
 Theorem hoare_loop : forall a P c t ,
     (forall z, {{P  [ t |-> (ANum z)]}}
                  c
@@ -511,6 +533,69 @@ Proof.
       * apply H9.
       * apply H6 in H1. simpl in H1. rewrite Nat.sub_0_r in H1. apply H1.
 Qed.
+
+
+Theorem hoare_loop1 : forall a P c ,
+    (forall z, {{fun st => P st /\    st T = z}}
+                 c
+               {{fun st => P st /\  st T =z - 1}})
+    ->
+    {{fun st => P st /\   st T = aeval st a  }}
+      LOOP a DO c END
+    {{fun st => P st /\  st T = 0}}.
+Proof.
+admit.
+  (*intros a. induction a.
+  -eapply hoare_loop.
+  -intros. apply
+*)
+Admitted.
+
+
+
+
+Definition prog1 :=
+{{ (fun st => st X + st T = 4) [ T |->  ANum 4] }}
+            (CLoop (ANum 4)
+               (CSeq
+                 (CAss   X (APlus (AId X) (ANum 1)))            
+                 (CAss  T  (AMinus (AId T) (ANum 1)))
+               )
+               )
+{{ (fun st =>  st X + st T = 4) [T |-> ANum 0]}}             
+.
+
+Lemma lemma_aux_prog1 : forall z,
+{{(fun st => st X + st T = 4) [ T |->  ANum z] }}
+(CSeq (CAss   X (APlus (AId X) (ANum 1))) (CAss  T  (AMinus (AId T) (ANum 1))))
+{{(fun st => st X + st T = 4) [ T |->  ANum (z-1)] }}
+.
+Proof.
+  induction z.
+  - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 3 )[ T |->  ANum 0]).
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum 0] [T |-> AId T- ANum 1] ). apply hoare_asgn. unfold assert_implies.
+      intros.
+      admit. 
+    +apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 3) [T |-> ANum 0] [X |-> AId X+ ANum 1] ). apply hoare_asgn. unfold assert_implies.
+     admit. 
+  - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 3 )[ T |->  ANum (z-0)]).
+    + apply
+        hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum (z-0)] [T |-> AId T- ANum 1] ). apply hoare_asgn. unfold assert_implies.
+      intros.
+      admit. 
+    +apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 3) [T |-> ANum (z-0)] [X |-> AId X+ ANum 1] ). apply hoare_asgn. unfold assert_implies.
+     admit.
+Admitted.    
+
+
+Theorem prog1_proof :
+  prog1.
+Proof.
+  unfold prog1.
+  apply hoare_loop.   
+  apply lemma_aux_prog1. 
+Qed.
+
 
 (*
  forall z. {{P /\ t=z}} c {{P /\ t=z-1}}.
@@ -542,28 +627,46 @@ Inductive dcom : Type :=
   | DCAsgn : string -> aexp ->  Assertion -> dcom
   | DCIf : bexp ->  Assertion -> dcom ->  Assertion -> dcom -> Assertion-> dcom
   | DCWhile : bexp -> Assertion -> dcom -> Assertion -> dcom
-  | DCLoop  : aexp -> (nat -> Assertion * Assertion) -> dcom -> Assertion  -> dcom      (* New *)  
+  | DCLoop  : aexp -> Assertion ->  dcom -> Assertion  -> dcom      (* New *)  
   | DCPre : Assertion -> dcom -> dcom
   | DCPost : dcom -> Assertion -> dcom.
-
-Inductive decorated : Type :=
+                                    
+Inductive    decorated : Type :=
   | Decorated : Assertion -> dcom -> decorated.
+
+
+
+Definition prog1 :=
+( Decorated (fun st => True /\ st T = 4)
+            (DCLoop (ANum 4)
+                    (fun st => st X + st T = 4 )
+             (
+               DCSeq
+                 (DCAsgn   X (APlus (AId X) (ANum 1))
+                           (fun st => st X + st T = 3 ))
+                 (DCAsgn  T  (AMinus (AId T) (ANum 1))
+                          (fun st => st X + st T = 4  ))
+             )
+    (fun st => st X + st T= 4 /\ st T= 0)
+    )
+).
 
 Delimit Scope default with default.
 
-Notation "'SKIP' {{ P }}"
+Notation "'SKIP' {{  P  }}"
       := (DCSkip P)
       (at level 10) : dcom_scope.
 
 Notation "l '::=' a {{ P }}"
-      := (DCAsgn l a P)
-      (at level 60, a at next level) : dcom_scope.
+      := (DCAsgn  l a P)
+           (at level 60, a at next level) : dcom_scope.
+
 Notation "'WHILE' b 'DO' {{ Pbody }} d 'END' {{ Ppost }}"
       := (DCWhile b Pbody d Ppost)
       (at level 80, right associativity) : dcom_scope.
 
-Notation "'LOOP' a 'DO'  {{ Pbodyin }} d 'WITH' {{ Pbodyout }} 'END' {{ Ppost }}"      (* New *)
-  := (DCLoop a (fun z => (Pbodyin z, Pbodyout z)) d Ppost)
+Notation "'LOOP' a 'DO' {{ Pbody }}  d 'END' {{ Ppost }}"      (* New *)
+  := (DCLoop a Pbody d  Ppost)
   (at level 80, right associativity) : dcom_scope.
 
 Notation "'TEST' b 'THEN' {{ P }} d 'ELSE' {{ P' }} d' 'FI' {{ Q }}"
@@ -590,11 +693,11 @@ Example dec0 :=
 Example dec1 :=
   WHILE (BTrue) DO {{ fun st => True }} SKIP {{ fun st => True }} END
   {{ fun st => True }}.
+
 Example dec2 :=
-  LOOP (ANum(4)) DO {{fun z => (fun st => True) }} (SKIP {{ fun st => True }}) WITH {{ fun z => (fun st => True)}}  END
+  LOOP (ANum(4)) DO {{fun st => True}}  SKIP {{ fun st => True }}   END
   {{ fun st => True }}.
 
-Set Printing All.
 
 Example dec_while : decorated :=
   {{ fun st => True }} 
@@ -608,35 +711,39 @@ Example dec_while : decorated :=
   {{ fun st => st X = 0 }}.
 
 Example dec_loop : decorated :=
-  {{ fun st => True }} 
-  LOOP (ANum(4))
-  DO
-    {{ fun z => (fun st => st X + st T = 4  /\ st T = z)}}
-    X ::= AId X + ANum 1
-    {{  fun st => st X + st T = 4  /\ st T = 1}}
-    WITH
-    {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}                       
+    {{ fun st => st X + st T = 4 }}
+      LOOP (ANum(4))
+      DO
+       {{fun st => st X + st T = 4  }}
+      X ::= AId X + ANum 1
+      {{  fun st => st X + st T = 4  }}
   END
-  {{ fun st => st X = 4 }}
+    {{ fun st => st X + st T = 4  }}                       
+.
+
+Example seq_dec (z:nat) : decorated :=
+      {{ (fun st => st X + st T = 4  /\ st T = z)}}
+      X ::= AId X + ANum 1
+      {{  fun st => st X + st T = 4  /\ st T = z}};;
+      T ::= AId T - ANum 1
+      {{  fun st => st X + st T = 4  /\ st T = z-1}}
 .
 
 
-Example dec_loop : decorated :=
-  {{ fun st => True }} 
-  X ::= AId X + ANum 1
-  {{ fun st => True }} 
-  LOOP (ANum(4))
-  DO
-    {{ fun z => (fun st => st X + st T = 4  /\ st T = z)}}
-    X ::= AId X + ANum 1
-    {{  fun st => st X + st T = 4  /\ st T = 1}}
-    WITH
-    {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}                       
+Example dec_loop_complete : decorated :=
+    {{ fun st => st X + st T = 4}}
+      LOOP (ANum(4))
+      DO
+      {{fun st => st X + st T = 4}}
+      X ::= AId X + ANum 1
+      {{  fun st => st X + st T = 4 }};;
+      T ::= AId T - ANum 1
+      {{  fun st => st X + st T = 4 }}
   END
-  {{ fun st => st X = 4 }}
+    {{fun st => st X + st T = 4  }}                       
 .
 
-
+Set Printing All.
 (** It is easy to go from a [dcom] to a [com] by erasing all
     annotations. *)
 
@@ -647,7 +754,7 @@ Fixpoint extract (d : dcom) : com :=
   | DCAsgn X a _       => X ::= a
   | DCIf b _ d1 _ d2 _ => TEST b THEN extract d1 ELSE extract d2 FI
   | DCWhile b _ d _    => WHILE b DO extract d END
-  | DCLoop  a _ d _    => CLoop a (extract d)      (* New *)
+  | DCLoop  a _ d _     => CLoop a (extract d)
   | DCPre _ d          => extract d
   | DCPost d _         => extract d
   end.
@@ -664,7 +771,7 @@ Fixpoint post (d : dcom) : Assertion :=
   | DCAsgn X a Q            => Q
   | DCIf  _ _ d1 _ d2 Q     => Q
   | DCWhile b Pbody c Ppost => Ppost
-  | DCLoop  a PBody c Ppost => Ppost (* New *)
+  | DCLoop a  Pbody c Ppost       => Ppost (* New *)
   | DCPre _ d               => post d
   | DCPost c Q              => Q
   end.
@@ -684,6 +791,7 @@ Definition dec_correct (dec : decorated) :=
 
 (* TODO *)
 
+Check forall (r:nat), True.
 
 (** ** Extracting Verification Conditions *)
 
@@ -709,8 +817,12 @@ Fixpoint verification_conditions (P : Assertion) (d : dcom) : Prop :=
       /\ ((fun st => post d st /\ bassn b st) ->> Pbody)
       /\ ((fun st => post d st /\ ~(bassn b st)) ->> Ppost)
       /\ verification_conditions Pbody d
-  | DCLoop a Pbody d Ppost =>               (* New *)
-    
+  | DCLoop a Pbody d Ppost => forall r,   
+    ((fun st => P st) ->> (fun st => Pbody st /\ st T = aeval st a))
+    /\ ((fun st => Pbody st /\  st T = r ) ->> Pbody)
+    /\ ((fun st => Pbody st /\  st T = 0 ) ->> Ppost)
+      /\ (post d ->>(fun st => Pbody st /\  st T = r-1 ))
+      /\ verification_conditions Pbody d
   | DCPre P' d =>
       (P ->> P') /\ verification_conditions P' d
   | DCPost d Q =>
@@ -749,7 +861,16 @@ Proof.
     eapply hoare_consequence_post; eauto.
     apply hoare_while.
     eapply hoare_consequence_pre; eauto.
-  - (* Pre *)
+  - (* Loop *)
+    eapply hoare_consequence_pre; eauto.
+    eapply hoare_consequence_post; eauto.
+    apply hoare_loop1;auto.  intro.
+    destruct (H z) as [Hpre [Hbody1 [Hpost1 [Hpost2 Hd]]]]; auto.
+    eapply hoare_consequence_pre; eauto.
+    eapply hoare_consequence_post;  eauto.
+    destruct (H 0) as [Hpre [Hbody1 [Hpost1 [Hpost2 Hd]]]]; auto.
+    destruct (H 0) as [Hpre [Hbody1 [Hpost1 [Hpost2 Hd]]]]; auto.
+  -  (* Pre *)
     destruct H as [HP Hd].
     eapply hoare_consequence_pre. apply IHd. apply Hd. assumption.
   - (* Post *)
@@ -758,3 +879,223 @@ Proof.
 Qed.
 
 
+Definition verification_conditions_dec (dec : decorated) : Prop :=
+  match dec with
+  | Decorated P d => verification_conditions P d
+  end.
+
+Lemma verification_correct_dec : forall dec,
+  verification_conditions_dec dec -> dec_correct dec.
+Proof.
+  intros [P d]. apply verification_correct.
+Qed.
+
+(** The propositions generated by [verification_conditions] are fairly
+    big, and they contain many conjuncts that are essentially trivial. *)
+
+Eval simpl in (verification_conditions_dec dec_while).
+(**
+
+   ===>
+    (((fun _ : state => True) ->> (fun _ : state => True)) /\
+     ((fun st : state => True /\ bassn (~(X = 0)) st) ->>
+      (fun st : state => True /\ st X <> 0)) /\
+     ((fun st : state => True /\ ~ bassn (~(X = 0)) st) ->>
+      (fun st : state => True /\ st X = 0)) /\
+      (fun st : state => True /\ st X <> 0) ->>
+      (fun _ : state => True) [X |-> X - 1]) /\
+      (fun st : state => True /\ st X = 0) ->> 
+      (fun st : state => st X = 0)   
+*)
+
+(** In principle, we could work with such propositions using just the
+    tactics we have so far, but we can make things much smoother with
+    a bit of automation.  We first define a custom [verify] tactic
+    that uses [split] repeatedly to turn all the conjunctions into
+    separate subgoals and then uses [omega] and [eauto] (described in
+    chapter [Auto] in _Logical Foundations_) to deal with as many
+    of them as possible. *)
+
+Tactic Notation "verify" :=
+  apply verification_correct;
+  repeat split;
+  simpl; unfold assert_implies;
+  unfold bassn in *; unfold beval in *; unfold aeval in *;
+  unfold assn_sub; intros;
+  repeat rewrite t_update_eq;
+  repeat (rewrite t_update_neq; [| (intro X; inversion X)]);
+  simpl in *;
+  repeat match goal with [H : _ /\ _ |- _] => destruct H end;
+  repeat rewrite not_true_iff_false in *;
+  repeat rewrite not_false_iff_true in *;
+  repeat rewrite negb_true_iff in *;
+  repeat rewrite negb_false_iff in *;
+  repeat rewrite eqb_eq in *;
+  repeat rewrite eqb_neq in *;
+  repeat rewrite leb_iff in *;
+  repeat rewrite leb_iff_conv in *;
+  try subst;
+  repeat
+    match goal with
+      [st : state |- _] =>
+        match goal with
+          [H : st _ = _ |- _] => rewrite -> H in *; clear H
+        | [H : _ = st _ |- _] => rewrite <- H in *; clear H
+        end
+    end;
+  try eauto; try omega.
+
+(** What's left after [verify] does its thing is "just the interesting
+    parts" of checking that the decorations are correct. For very
+    simple examples, [verify] sometimes even immediately solves the
+    goal (provided that the annotations are correct!). *)
+
+Theorem dec_while_correct :
+  dec_correct dec_while.
+Proof. verify.
+       admit. admit. 
+Admitted.
+
+Theorem dec1_correct :
+  dec_correct (Decorated (fun st => True) dec1).
+Proof. verify.
+Qed.
+
+Example dec3 (r:nat) :=
+  LOOP (ANum(4)) DO {{fun st => st T =r }}  T::= (AId T) - (ANum 1) {{ fun st => st T= r-1}}   END
+  {{ fun st => True }}.
+
+
+Theorem dec2_correct : forall r,
+  dec_correct (Decorated (fun st => True /\ st T =4) (dec3 r)).
+Proof. intro. verify.
+admit. 
+Qed.
+
+
+(** Another example (formalizing a decorated program we've seen
+    before): *)
+
+Example subtract_slowly_dec (m : nat) (p : nat) : decorated :=
+    {{ fun st => st X = m /\ st Z = p }} ->>
+    {{ fun st => st Z - st X = p - m }}
+  WHILE ~(X = 0)
+  DO   {{ fun st => st Z - st X = p - m /\ st X <> 0 }} ->>
+       {{ fun st => (st Z - 1) - (st X - 1) = p - m }}
+     Z ::= Z - 1
+       {{ fun st => st Z - (st X - 1) = p - m }} ;;
+     X ::= X - 1
+       {{ fun st => st Z - st X = p - m }}
+  END
+    {{ fun st => st Z - st X = p - m /\ st X = 0 }} ->>
+    {{ fun st => st Z = p - m }}.
+
+Theorem subtract_slowly_dec_correct : forall m p,
+  dec_correct (subtract_slowly_dec m p).
+Proof. intros m p. verify. (* this grinds for a bit! *) Qed.
+
+(* ================================================================= *)
+(** ** Examples *)
+
+(** In this section, we use the automation developed above to verify
+    formal decorated programs corresponding to most of the informal
+    ones we have seen. *)
+
+(* ----------------------------------------------------------------- *)
+(** *** Swapping Using Addition and Subtraction *)
+
+Definition swap : com :=
+  X ::= X + Y;;
+  Y ::= X - Y;;
+  X ::= X - Y.
+
+Definition swap_dec m n : decorated :=
+   {{ fun st => st X = m /\ st Y = n}} ->>
+   {{ fun st => (st X + st Y) - ((st X + st Y) - st Y) = n
+                /\ (st X + st Y) - st Y = m }}
+  X ::= X + Y
+   {{ fun st => st X - (st X - st Y) = n /\ st X - st Y = m }};;
+  Y ::= X - Y
+   {{ fun st => st X - st Y = n /\ st Y = m }};;
+  X ::= X - Y
+   {{ fun st => st X = n /\ st Y = m}}.
+
+Theorem swap_correct : forall m n,
+  dec_correct (swap_dec m n).
+Proof. intros; verify. Qed.
+
+(* ----------------------------------------------------------------- *)
+(** *** Simple Conditionals *)
+
+Definition if_minus_plus_com :=
+  (TEST X <= Y
+    THEN Z ::= Y - X
+    ELSE Y ::= X + Z
+  FI)%imp.
+
+Definition if_minus_plus_dec :=
+  {{fun st => True}}
+  TEST X <= Y  THEN
+      {{ fun st => True /\ st X <= st Y }} ->>
+      {{ fun st => st Y = st X + (st Y - st X) }}
+    Z ::= Y - X
+      {{ fun st => st Y = st X + st Z }}
+  ELSE
+      {{ fun st => True /\ ~(st X <= st Y) }} ->>
+      {{ fun st => st X + st Z = st X + st Z }}
+    Y ::= X + Z
+      {{ fun st => st Y = st X + st Z }}
+  FI
+  {{fun st => st Y = st X + st Z}}.
+
+Theorem if_minus_plus_correct :
+  dec_correct if_minus_plus_dec.
+Proof. verify. Qed.
+
+Definition if_minus_dec :=
+  {{fun st => True}}
+  TEST X <= Y THEN
+      {{fun st => True /\ st X <= st Y }} ->>
+      {{fun st => (st Y - st X) + st X = st Y
+               \/ (st Y - st X) + st Y = st X}}
+    Z ::= Y - X
+      {{fun st => st Z + st X = st Y \/ st Z + st Y = st X}}
+  ELSE
+      {{fun st => True /\ ~(st X <= st Y) }} ->>
+      {{fun st => (st X - st Y) + st X = st Y
+               \/ (st X - st Y) + st Y = st X}}
+    Z ::= X - Y
+      {{fun st => st Z + st X = st Y \/ st Z + st Y = st X}}
+  FI
+    {{fun st => st Z + st X = st Y \/ st Z + st Y = st X}}.
+
+Theorem if_minus_correct :
+  dec_correct if_minus_dec.
+Proof. verify. Qed.
+
+(* ----------------------------------------------------------------- *)
+(** *** Division *)
+
+Definition div_mod_dec (a b : nat) : decorated :=
+  {{ fun st => True }} ->>
+  {{ fun st => b * 0 + a = a }}
+  X ::= a
+  {{ fun st => b * 0 + st X = a }};;
+  Y ::= 0
+  {{ fun st => b * st Y + st X = a }};;
+  WHILE b <= X DO
+    {{ fun st => b * st Y + st X = a /\ b <= st X }} ->>
+    {{ fun st => b * (st Y + 1) + (st X - b) = a }}
+    X ::= X - b
+    {{ fun st => b * (st Y + 1) + st X = a }};;
+    Y ::= Y + 1
+    {{ fun st => b * st Y + st X = a }}
+  END
+  {{ fun st => b * st Y + st X = a /\ ~(b <= st X) }} ->>
+  {{ fun st => b * st Y + st X = a /\ (st X < b) }}.
+
+Theorem div_mod_dec_correct : forall a b,
+  dec_correct (div_mod_dec a b).
+Proof. intros a b. verify.
+  rewrite mult_plus_distr_l. omega.
+Qed.
