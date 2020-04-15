@@ -531,9 +531,6 @@ st X:=X+1 st_k1 X::X+1 st_k2 X:=X+1 st_k3  X:=X+1 st_k4=st' *)
 
 (*Decorations*)
 
-(*What kinds of decorations might loop need? I'm sure they're similar to while, so they can be the same for now *)
-(* Could we make it so we actually update the variable?? This would simplify things I believe *)
-
 (*forall r. {{P }} c {{Q}} : Nat -> (Assertion -> dcom ) *)
 
 Inductive dcom : Type :=
@@ -542,7 +539,7 @@ Inductive dcom : Type :=
   | DCAsgn : string -> aexp ->  Assertion -> dcom
   | DCIf : bexp ->  Assertion -> dcom ->  Assertion -> dcom -> Assertion-> dcom
   | DCWhile : bexp -> Assertion -> dcom -> Assertion -> dcom
-  | DCLoop  : aexp -> (nat -> Assertion * Assertion) -> dcom -> Assertion  -> dcom      (* New *)  
+  | DCLoop  : aexp -> (nat -> Assertion * Assertion) -> dcom -> Assertion  -> dcom 
   | DCPre : Assertion -> dcom -> dcom
   | DCPost : dcom -> Assertion -> dcom.
 
@@ -594,6 +591,7 @@ Example dec2 :=
   LOOP (ANum(4)) DO {{fun z => (fun st => True) }} (SKIP {{ fun st => True }}) WITH {{ fun z => (fun st => True)}}  END
   {{ fun st => True }}.
 
+
 Set Printing All.
 
 Example dec_while : decorated :=
@@ -615,26 +613,86 @@ Example dec_loop : decorated :=
     X ::= AId X + ANum 1
     {{  fun st => st X + st T = 4  /\ st T = 1}}
     WITH
-    {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}                       
+    {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}
   END
   {{ fun st => st X = 4 }}
 .
 
 
-Example dec_loop : decorated :=
-  {{ fun st => True }} 
-  X ::= AId X + ANum 1
-  {{ fun st => True }} 
-  LOOP (ANum(4))
-  DO
-    {{ fun z => (fun st => st X + st T = 4  /\ st T = z)}}
-    X ::= AId X + ANum 1
-    {{  fun st => st X + st T = 4  /\ st T = 1}}
-    WITH
-    {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}                       
-  END
-  {{ fun st => st X = 4 }}
+(* Multiplication *)
+(*
+{True}
+
+X ::= m
+Y ::= n
+
+{ X = m * (n - z) /\ (z = (n-1) } ->
+{ X = m * 1 }
+LOOP X
+{ X = m * (n - z}
+DO X = X + Y
+{ }
+END
+{ X = m * (n - z) /\ z = 0} ->
+{ X = m * n }
+
+Loop invariant:
+Something like x = m * (n - z)
+*)
+
+Example loop_mult : decorated := 
+{{ fun st => True }}
+X ::= ANum 4
+{{ fun st => True }} ;;
+
+Y ::= ANum 3
+{{ fun st => True }} ;;
+
+LOOP (AId) X DO
+  {{ fun z => fun st => True }}
+  X ::= AId X + AId Y
+  {{ fun st => True }}
+  WITH  {{ fun z => fun st => True }}
+END
+{{ fun st => True}} ->>
+{{fun st => aeval st (AId X) = 12}}
 .
+
+
+(* Exponentiation (assumes mult)
+
+X ::= m
+E ::= n
+{True}
+{ X = X ^ (E - z) /\ z = (E - 1)}
+LOOP E
+{ X = X ^ (E -z) }
+DO X = X * X
+END
+{ X = X ^ (E - z) /\ z = 0} ->
+{ X = X ^ E }
+
+
+loop invariant: X = X ^ (E - Z)
+*)
+
+
+(* Tetration (assumes exp.) 
+X ::= m
+B ::= X
+E ::= n
+{True}
+{ X = m }
+LOOP E
+DO X = B ^ X
+END
+{ X = X ^^ E }
+
+*)
+
+(* bitwise OR (Coq binary?)
+
+*)
 
 
 (** It is easy to go from a [dcom] to a [com] by erasing all
