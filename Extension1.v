@@ -9,7 +9,7 @@ From Coq Require Import omega.Omega.
 From Coq Require Import Lists.List.
 From Coq Require Import Strings.String.
 Import ListNotations.
-Require Import Maps. 
+(*Require Import Maps. *)
 
 (*MAPS *)
 Definition total_map (A : Type) := string -> A.
@@ -33,6 +33,22 @@ Notation "x '!->' v ';' m" := (t_update m x v)
                               (at level 100, v at next level, right associativity).
 
 Definition empty_st := (_ !-> 0).
+
+Lemma t_update_eq : forall (A : Type) (m : total_map A) x v,
+    (x !-> v ; m) x = v.
+Proof.
+  Admitted. 
+
+Theorem t_update_neq : forall (A : Type) (m : total_map A) x1 x2 v,
+    x1 <> x2 ->
+    (x1 !-> v ; m) x2 = m x2.
+Proof.
+Admitted.
+
+Lemma t_update_shadow : forall (A : Type) (m : total_map A) x v1 v2,
+    (x !-> v2 ; x !-> v1 ; m) = (x !-> v2 ; m).
+Proof.
+Admitted.
 
 (*imp*)
 Inductive aexp : Type :=
@@ -534,7 +550,7 @@ Proof.
       * apply H6 in H1. simpl in H1. rewrite Nat.sub_0_r in H1. apply H1.
 Qed.
 
-
+(*
 Theorem hoare_loop1 : forall a P c ,
     (forall z, {{fun st => P st /\    st T = z}}
                  c
@@ -550,7 +566,7 @@ admit.
   -intros. apply
 *)
 Admitted.
-
+*)
 
 
 
@@ -565,6 +581,7 @@ Definition prog1 :=
 {{ (fun st =>  st X + st T = 4) [T |-> ANum 0]}}             
 .
 
+
 Lemma lemma_aux_prog1 : forall z,
 {{(fun st => st X + st T = 4) [ T |->  ANum z] }}
 (CSeq (CAss   X (APlus (AId X) (ANum 1))) (CAss  T  (AMinus (AId T) (ANum 1))))
@@ -574,18 +591,19 @@ Proof.
   induction z.
   - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 3 )[ T |->  ANum 0]).
     + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum 0] [T |-> AId T- ANum 1] ). apply hoare_asgn. unfold assert_implies.
-      intros.
-      admit. 
-    +apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 3) [T |-> ANum 0] [X |-> AId X+ ANum 1] ). apply hoare_asgn. unfold assert_implies.
-     admit. 
+      admit.
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 3) [T |-> ANum 0] [X |-> AId X+ ANum 1] ). apply hoare_asgn. unfold assert_implies.
+      intros. unfold assn_sub in H. simpl in H. rewrite t_update_eq in H. assert (T <> X). { admit. }
+      eapply t_update_neq in H0. rewrite H0 in H.
+      unfold assn_sub; simpl. rewrite t_update_eq.
+      assert (T <> X). { admit. } eapply t_update_neq in H1. rewrite H1. rewrite t_update_eq. admit. (* Problem here *)
   - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 3 )[ T |->  ANum (z-0)]).
     + apply
         hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum (z-0)] [T |-> AId T- ANum 1] ). apply hoare_asgn. unfold assert_implies.
-      intros.
-      admit. 
-    +apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 3) [T |-> ANum (z-0)] [X |-> AId X+ ANum 1] ). apply hoare_asgn. unfold assert_implies.
-     admit.
-Admitted.    
+      admit.
+     + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 3) [T |-> ANum (z-0)] [X |-> AId X+ ANum 1] ). apply hoare_asgn. unfold assert_implies.
+      admit.
+Admitted.
 
 
 Theorem prog1_proof :
@@ -595,6 +613,38 @@ Proof.
   apply hoare_loop.   
   apply lemma_aux_prog1. 
 Qed.
+
+(* Undecorated Examples *)
+
+(* Multiplication *)
+
+(* 
+
+forall x,y
+
+{ X = 0 }
+LOOP y DO
+X := X + x
+END.
+{ X = x*y }
+
+*)
+
+Theorem loop_mult :
+{{ (fun st => st X  = (4 - aeval st (AId T)) * 3) [ T |-> ANum 4] }} 
+LOOP ANum 4 DO
+X ::= AId X + ANum 3;;
+T ::= AId T - ANum 1
+END
+{{ (fun st => st X = (4 - (aeval st (AId T))) * 3) [T |-> ANum 0] }}.
+(* ->> { st X = 3 * 4 } *)
+
+Proof.
+  intros. apply hoare_loop. induction z.
+  -  admit. (* unfold assn_sub. simpl. eapply hoare_seq.
+    + apply hoare_asgn.
+    + eapply hoare_asgn. *)
+  - unfold assn_sub. simpl.
 
 
 (*
@@ -624,11 +674,11 @@ Inductive dcom : Type :=
   | DCAsgn : string -> aexp ->  Assertion -> dcom
   | DCIf : bexp ->  Assertion -> dcom ->  Assertion -> dcom -> Assertion-> dcom
   | DCWhile : bexp -> Assertion -> dcom -> Assertion -> dcom
-<<<<<<< HEAD
   | DCLoop  : aexp -> Assertion ->  dcom -> Assertion  -> dcom      (* New *)  
+<<<<<<< HEAD
+ (* | DCLoop  : aexp -> (nat -> Assertion * Assertion) -> dcom -> Assertion  -> dcom *)
 =======
-  | DCLoop  : aexp -> (nat -> Assertion * Assertion) -> dcom -> Assertion  -> dcom 
->>>>>>> 54ea4f19279694efd94ebc31f5abb83c21027359
+>>>>>>> 724a3ef938ed5e8f78fd5141514245985ca7ed89
   | DCPre : Assertion -> dcom -> dcom
   | DCPost : dcom -> Assertion -> dcom.
                                     
@@ -637,7 +687,11 @@ Inductive    decorated : Type :=
 
 
 
-Definition prog1 :=
+<<<<<<< HEAD
+Definition prog2 :=
+=======
+(*Definition prog1 :=
+>>>>>>> 724a3ef938ed5e8f78fd5141514245985ca7ed89
 ( Decorated (fun st => True /\ st T = 4)
             (DCLoop (ANum 4)
                     (fun st => st X + st T = 4 )
@@ -651,7 +705,7 @@ Definition prog1 :=
     (fun st => st X + st T= 4 /\ st T= 0)
     )
 ).
-
+*)
 Delimit Scope default with default.
 
 Notation "'SKIP' {{  P  }}"
@@ -699,11 +753,8 @@ Example dec2 :=
   LOOP (ANum(4)) DO {{fun st => True}}  SKIP {{ fun st => True }}   END
   {{ fun st => True }}.
 
-<<<<<<< HEAD
-=======
 
 Set Printing All.
->>>>>>> 54ea4f19279694efd94ebc31f5abb83c21027359
 
 Example dec_while : decorated :=
   {{ fun st => True }} 
@@ -717,14 +768,13 @@ Example dec_while : decorated :=
   {{ fun st => st X = 0 }}.
 
 Example dec_loop : decorated :=
-<<<<<<< HEAD
     {{ fun st => st X + st T = 4 }}
       LOOP (ANum(4))
       DO
        {{fun st => st X + st T = 4  }}
       X ::= AId X + ANum 1
       {{  fun st => st X + st T = 4  }}
-=======
+<<<<<<< HEAD
   {{ fun st => True }} 
   LOOP (ANum(4))
   DO
@@ -733,7 +783,8 @@ Example dec_loop : decorated :=
     {{  fun st => st X + st T = 4  /\ st T = 1}}
     WITH
     {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}
->>>>>>> 54ea4f19279694efd94ebc31f5abb83c21027359
+=======
+>>>>>>> 724a3ef938ed5e8f78fd5141514245985ca7ed89
   END
     {{ fun st => st X + st T = 4  }}                       
 .
@@ -748,6 +799,8 @@ Example seq_dec (z:nat) : decorated :=
 
 <<<<<<< HEAD
 
+=======
+>>>>>>> 724a3ef938ed5e8f78fd5141514245985ca7ed89
 Example dec_loop_complete : decorated :=
     {{ fun st => st X + st T = 4}}
       LOOP (ANum(4))
@@ -761,8 +814,9 @@ Example dec_loop_complete : decorated :=
     {{fun st => st X + st T = 4  }}                       
 .
 
-Set Printing All.
+<<<<<<< HEAD
 =======
+Set Printing All.
 (* Multiplication *)
 (*
 {True}
@@ -788,19 +842,10 @@ Example loop_mult : decorated :=
 {{ fun st => True }}
 X ::= ANum 4
 {{ fun st => True }} ;;
+>>>>>>> 724a3ef938ed5e8f78fd5141514245985ca7ed89
 
-Y ::= ANum 3
-{{ fun st => True }} ;;
 
-LOOP (AId) X DO
-  {{ fun z => fun st => True }}
-  X ::= AId X + AId Y
-  {{ fun st => True }}
-  WITH  {{ fun z => fun st => True }}
-END
-{{ fun st => True}} ->>
-{{fun st => aeval st (AId X) = 12}}
-.
+(* Multiplication *)
 
 
 (* Exponentiation (assumes mult)
@@ -839,7 +884,6 @@ END
 *)
 
 
->>>>>>> 54ea4f19279694efd94ebc31f5abb83c21027359
 (** It is easy to go from a [dcom] to a [com] by erasing all
     annotations. *)
 
