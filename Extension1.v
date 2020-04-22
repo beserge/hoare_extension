@@ -675,10 +675,7 @@ Inductive dcom : Type :=
   | DCIf : bexp ->  Assertion -> dcom ->  Assertion -> dcom -> Assertion-> dcom
   | DCWhile : bexp -> Assertion -> dcom -> Assertion -> dcom
   | DCLoop  : aexp -> Assertion ->  dcom -> Assertion  -> dcom      (* New *)  
-<<<<<<< HEAD
  (* | DCLoop  : aexp -> (nat -> Assertion * Assertion) -> dcom -> Assertion  -> dcom *)
-=======
->>>>>>> 724a3ef938ed5e8f78fd5141514245985ca7ed89
   | DCPre : Assertion -> dcom -> dcom
   | DCPost : dcom -> Assertion -> dcom.
                                     
@@ -687,11 +684,8 @@ Inductive    decorated : Type :=
 
 
 
-<<<<<<< HEAD
-Definition prog2 :=
-=======
 (*Definition prog1 :=
->>>>>>> 724a3ef938ed5e8f78fd5141514245985ca7ed89
+
 ( Decorated (fun st => True /\ st T = 4)
             (DCLoop (ANum 4)
                     (fun st => st X + st T = 4 )
@@ -774,7 +768,7 @@ Example dec_loop : decorated :=
        {{fun st => st X + st T = 4  }}
       X ::= AId X + ANum 1
       {{  fun st => st X + st T = 4  }}
-<<<<<<< HEAD
+
   {{ fun st => True }} 
   LOOP (ANum(4))
   DO
@@ -783,8 +777,7 @@ Example dec_loop : decorated :=
     {{  fun st => st X + st T = 4  /\ st T = 1}}
     WITH
     {{ fun z =>  (fun st => st X + st T = 4  /\ st T = z-1)}}
-=======
->>>>>>> 724a3ef938ed5e8f78fd5141514245985ca7ed89
+
   END
     {{ fun st => st X + st T = 4  }}                       
 .
@@ -797,10 +790,7 @@ Example seq_dec (z:nat) : decorated :=
       {{  fun st => st X + st T = 4  /\ st T = z-1}}
 .
 
-<<<<<<< HEAD
 
-=======
->>>>>>> 724a3ef938ed5e8f78fd5141514245985ca7ed89
 Example dec_loop_complete : decorated :=
     {{ fun st => st X + st T = 4}}
       LOOP (ANum(4))
@@ -814,8 +804,7 @@ Example dec_loop_complete : decorated :=
     {{fun st => st X + st T = 4  }}                       
 .
 
-<<<<<<< HEAD
-=======
+
 Set Printing All.
 (* Multiplication *)
 (*
