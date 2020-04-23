@@ -645,7 +645,19 @@ Proof.
     + apply hoare_asgn.
     + eapply hoare_asgn. *)
   - unfold assn_sub. simpl.
+  Admitted.
 
+Theorem loop_factorial :
+(* X ::= 1;; *)
+{{ (fun st => st X  = fact (5 - st T)) [ T |-> ANum 4] }} 
+LOOP ANum 4 DO
+X ::= AId X * (ANum 5 - AId T);;
+T ::= AId T - ANum 1
+END
+{{ (fun st => st X  = fact (5 - st T)) [T |-> ANum 0] }}.
+
+Proof.
+  Admitted.
 
 (*
  forall z. {{P /\ t=z}} c {{P /\ t=z-1}}.
