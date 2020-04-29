@@ -532,7 +532,7 @@ Qed.
 
 
 Theorem hoare_loop : forall a P c t ,
-    (forall z, {{P  [ t |-> (ANum (z+ 1))]}}
+    (forall z, {{P  [ t |-> (ANum (z+1))]}}
                  c
                {{P  [ t |-> (ANum(z))]}})
     ->
@@ -608,6 +608,23 @@ Definition prog1 :=
 {{ (fun st =>  st X + st T = 4) [T |-> ANum 0]}}             
 .
 
+(*
+{{ X+T=4 }} [T|->4]
+Loop 4 do 
+forall z
+{{ X+T=4 }} [T|->(s z)+1]
+->>
+{{ X+T=5 }} [T|->(s z)+ 1][X|->X+1]
+ X:=X+1;
+{{ X+T=5 }} [T|->(s z)+ 1]
+->>
+{{ X+T=4 }} [T-> (s z)] [T|-> T-1]
+ T:=T-1;
+{{ X+T=4 }} [T|-> (s z)]
+end
+{{ X+T=4 }}  [T|-> (s z)]
+*)
+
 Lemma TdiffX:  
   T<>X.
 Proof. 
@@ -671,7 +688,7 @@ induction z.
          apply TdiffX. 
     + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 5) [T |-> ANum 1] [X |-> AId X+ ANum 1] ).
       ++ apply hoare_asgn.
-      ++ unfold assert_implies. unfold assn_sub. simpl. intros.
+      ++ unfold assert_implies. unfold assn_sub. simpl. intros.  
          rewrite t_update_eq in H. rewrite t_update_eq. rewrite t_update_neq.
          rewrite t_update_eq. rewrite t_update_neq in H. omega. 
          apply TdiffX. apply TdiffX.
@@ -708,33 +725,6 @@ END.
 
 *)
 
-Tactic Notation "verify" :=
-  repeat split;
-  simpl; unfold assert_implies;
-  unfold bassn in *; unfold beval in *; unfold aeval in *;
-  unfold assn_sub; intros;
-  repeat rewrite t_update_eq;
-  repeat (rewrite t_update_neq; [| (intro X; inversion X)]);
-  simpl in *;
-  repeat match goal with [H : _ /\ _ |- _] => destruct H end;
-  repeat rewrite not_true_iff_false in *;
-  repeat rewrite not_false_iff_true in *;
-  repeat rewrite negb_true_iff in *;
-  repeat rewrite negb_false_iff in *;
-  repeat rewrite eqb_eq in *;
-  repeat rewrite eqb_neq in *;
-  repeat rewrite leb_iff in *;
-  repeat rewrite leb_iff_conv in *;
-  try subst;
-  repeat
-    match goal with
-      [st : state |- _] =>
-        match goal with
-          [H : st _ = _ |- _] => rewrite -> H in *; clear H
-        | [H : _ = st _ |- _] => rewrite <- H in *; clear H
-        end
-    end;
-  try eauto; try omega.
 
 Theorem loop_mult :
 {{ (fun st => st X  = (4 - aeval st (AId T)) * 3) [ T |-> ANum 4] }} 
