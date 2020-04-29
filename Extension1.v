@@ -532,9 +532,9 @@ Qed.
 
 
 Theorem hoare_loop : forall a P c t ,
-    (forall z, {{P  [ t |-> (ANum z)]}}
+    (forall z, {{P  [ t |-> (ANum (z+ 1))]}}
                  c
-               {{P  [ t |-> (ANum(z - 1))]}})
+               {{P  [ t |-> (ANum(z))]}})
     ->
     {{P [  t |-> (ANum a) ]}}
       LOOP (ANum a) DO c END
@@ -547,7 +547,7 @@ Proof.
     + inversion H6.
     + simpl in H9. eapply H in H6. apply IHa in H. unfold hoare_triple in H. eapply H.
       * apply H9.
-      * apply H6 in H1. simpl in H1. rewrite Nat.sub_0_r in H1. apply H1.
+      * apply H6. rewrite Nat.add_1_r. apply H1.
 Qed.
 
 (*
@@ -569,6 +569,33 @@ Admitted.
 *)
 
 
+Tactic Notation "verify" :=
+  repeat split;
+  simpl; unfold assert_implies;
+  unfold bassn in *; unfold beval in *; unfold aeval in *;
+  unfold assn_sub; intros;
+  repeat rewrite t_update_eq;
+  repeat (rewrite t_update_neq; [| (intro X; inversion X)]);
+  simpl in *;
+  repeat match goal with [H : _ /\ _ |- _] => destruct H end;
+  repeat rewrite not_true_iff_false in *;
+  repeat rewrite not_false_iff_true in *;
+  repeat rewrite negb_true_iff in *;
+  repeat rewrite negb_false_iff in *;
+  repeat rewrite eqb_eq in *;
+  repeat rewrite eqb_neq in *;
+  repeat rewrite leb_iff in *;
+  repeat rewrite leb_iff_conv in *;
+  try subst;
+  repeat
+    match goal with
+      [st : state |- _] =>
+        match goal with
+          [H : st _ = _ |- _] => rewrite -> H in *; clear H
+        | [H : _ = st _ |- _] => rewrite <- H in *; clear H
+        end
+    end;
+  try eauto; try omega.
 
 Definition prog1 :=
 {{ (fun st => st X + st T = 4) [ T |->  ANum 4] }}
@@ -581,30 +608,46 @@ Definition prog1 :=
 {{ (fun st =>  st X + st T = 4) [T |-> ANum 0]}}             
 .
 
+Lemma TdiffX:  
+  T<>X.
+Proof. 
+unfold T; unfold X; apply eqb_neq; reflexivity. 
+Qed.   
 
 Lemma lemma_aux_prog1 : forall z,
-{{(fun st => st X + st T = 4) [ T |->  ANum z] }}
-(CSeq (CAss   X (APlus (AId X) (ANum 1))) (CAss  T  (AMinus (AId T) (ANum 1))))
-{{(fun st => st X + st T = 4) [ T |->  ANum (z-1)] }}
+  {{(fun st : string -> nat => st X + st T = 4) [T |-> ANum (z + 1)]}}
+  X ::= AId X + ANum 1;; T ::= AId T - ANum 1
+  {{(fun st : string -> nat => st X + st T = 4) [T |-> ANum z]}}
 .
 Proof.
-  induction z.
-  - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 3 )[ T |->  ANum 0]).
-    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum 0] [T |-> AId T- ANum 1] ). apply hoare_asgn. unfold assert_implies.
-      admit.
-    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 3) [T |-> ANum 0] [X |-> AId X+ ANum 1] ). apply hoare_asgn. unfold assert_implies.
-      intros. unfold assn_sub in H. simpl in H. rewrite t_update_eq in H. assert (T <> X). { admit. }
-      eapply t_update_neq in H0. rewrite H0 in H.
-      unfold assn_sub; simpl. rewrite t_update_eq.
-      assert (T <> X). { admit. } eapply t_update_neq in H1. rewrite H1. rewrite t_update_eq. admit. (* Problem here *)
-  - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 3 )[ T |->  ANum (z-0)]).
-    + apply
-        hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum (z-0)] [T |-> AId T- ANum 1] ). apply hoare_asgn. unfold assert_implies.
-      admit.
-     + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 3) [T |-> ANum (z-0)] [X |-> AId X+ ANum 1] ). apply hoare_asgn. unfold assert_implies.
-      admit.
-Admitted.
-
+induction z.
+  - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 5 )[ T |->  ANum 1]).
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum 0] [T |-> AId T- ANum 1] ).
+      ++ apply hoare_asgn.
+      ++ unfold assert_implies. unfold assn_sub. simpl. intros.
+         rewrite t_update_eq in H. rewrite t_update_eq. rewrite t_update_neq.
+         rewrite t_update_neq. rewrite t_update_neq in H. omega.  
+         apply TdiffX. apply TdiffX. apply TdiffX.
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 5) [T |-> ANum 1] [X |-> AId X+ ANum 1] ).
+      ++ apply hoare_asgn.
+      ++ unfold assert_implies. unfold assn_sub. simpl. intros.
+         rewrite t_update_eq in H. rewrite t_update_eq. rewrite t_update_neq.
+         rewrite t_update_eq. rewrite t_update_neq in H. omega. 
+         apply TdiffX. apply TdiffX.
+  - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 5 )[ T |->  ANum (S z + 1)]).
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum (S z)] [T |-> AId T- ANum 1] ).
+      ++ apply hoare_asgn.
+      ++ unfold assert_implies. unfold assn_sub. simpl. intros.
+         rewrite t_update_eq in H. rewrite t_update_eq. rewrite t_update_neq.
+         rewrite t_update_neq. rewrite t_update_neq in H. omega.  
+         apply TdiffX. apply TdiffX. apply TdiffX.
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 5) [T |-> ANum (S z +1)] [X |-> AId X+ ANum 1] ).
+      ++ apply hoare_asgn.
+      ++ unfold assert_implies. unfold assn_sub. simpl. intros.
+         rewrite t_update_eq in H. rewrite t_update_eq. rewrite t_update_neq.
+         rewrite t_update_eq. rewrite t_update_neq in H. omega. 
+         apply TdiffX. apply TdiffX.
+Qed.
 
 Theorem prog1_proof :
   prog1.
@@ -613,6 +656,41 @@ Proof.
   apply hoare_loop.   
   apply lemma_aux_prog1. 
 Qed.
+
+Lemma lemma_aux_prog_verify : forall z,
+  {{(fun st : string -> nat => st X + st T = 4) [T |-> ANum (z + 1)]}}
+  X ::= AId X + ANum 1;; T ::= AId T - ANum 1
+  {{(fun st : string -> nat => st X + st T = 4) [T |-> ANum z]}}
+.
+Proof.
+induction z.
+  - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 5 )[ T |->  ANum 1]).
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum 0] [T |-> AId T- ANum 1] ).
+      ++ apply hoare_asgn.
+      ++ verify. rewrite t_update_eq in H. rewrite t_update_neq in H. omega.
+         apply TdiffX. 
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 5) [T |-> ANum 1] [X |-> AId X+ ANum 1] ).
+      ++ apply hoare_asgn.
+      ++ unfold assert_implies. unfold assn_sub. simpl. intros.
+         rewrite t_update_eq in H. rewrite t_update_eq. rewrite t_update_neq.
+         rewrite t_update_eq. rewrite t_update_neq in H. omega. 
+         apply TdiffX. apply TdiffX.
+  - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 5 )[ T |->  ANum (S z + 1)]).
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum (S z)] [T |-> AId T- ANum 1] ).
+      ++ apply hoare_asgn.
+      ++  verify. rewrite t_update_eq in H. rewrite t_update_neq in H. omega.  
+         apply TdiffX. 
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 5) [T |-> ANum (S z +1)] [X |-> AId X+ ANum 1] ).
+      ++ apply hoare_asgn.
+      ++ unfold assert_implies. unfold assn_sub. simpl. intros.
+         rewrite t_update_eq in H. rewrite t_update_eq. rewrite t_update_neq.
+         rewrite t_update_eq. rewrite t_update_neq in H. omega. 
+         apply TdiffX. apply TdiffX.
+Qed.
+
+
+
+
 
 (* Undecorated Examples *)
 
@@ -629,6 +707,34 @@ END.
 { X = x*y }
 
 *)
+
+Tactic Notation "verify" :=
+  repeat split;
+  simpl; unfold assert_implies;
+  unfold bassn in *; unfold beval in *; unfold aeval in *;
+  unfold assn_sub; intros;
+  repeat rewrite t_update_eq;
+  repeat (rewrite t_update_neq; [| (intro X; inversion X)]);
+  simpl in *;
+  repeat match goal with [H : _ /\ _ |- _] => destruct H end;
+  repeat rewrite not_true_iff_false in *;
+  repeat rewrite not_false_iff_true in *;
+  repeat rewrite negb_true_iff in *;
+  repeat rewrite negb_false_iff in *;
+  repeat rewrite eqb_eq in *;
+  repeat rewrite eqb_neq in *;
+  repeat rewrite leb_iff in *;
+  repeat rewrite leb_iff_conv in *;
+  try subst;
+  repeat
+    match goal with
+      [st : state |- _] =>
+        match goal with
+          [H : st _ = _ |- _] => rewrite -> H in *; clear H
+        | [H : _ = st _ |- _] => rewrite <- H in *; clear H
+        end
+    end;
+  try eauto; try omega.
 
 Theorem loop_mult :
 {{ (fun st => st X  = (4 - aeval st (AId T)) * 3) [ T |-> ANum 4] }} 
