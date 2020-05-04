@@ -50,6 +50,8 @@ Lemma t_update_shadow : forall (A : Type) (m : total_map A) x v1 v2,
 Proof.
 Admitted.
 
+
+
 (*imp*)
 Inductive aexp : Type :=
   | ANum (n : nat)
@@ -82,6 +84,8 @@ Fixpoint aeval (st : state) (a : aexp) : nat :=
   | AMinus a1 a2  => (aeval st a1) - (aeval st a2)
   | AMult a1 a2 => (aeval st a1) * (aeval st a2)
   end.
+
+
 
 Fixpoint beval (st : state) (b : bexp) : bool :=
   match b with
@@ -693,7 +697,7 @@ induction z.
          rewrite t_update_eq. rewrite t_update_neq in H. omega. 
          apply TdiffX. apply TdiffX.
   - simpl. apply hoare_seq with (Q:= (fun st => st X + st T = 5 )[ T |->  ANum (S z + 1)]).
-    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum (S z)] [T |-> AId T- ANum 1] ).
+    + apply hoare_consequence_pre with (P':= (fun st : string -> nat => st X + st T = 4) [T |-> ANum (S z)] [T |-> AId T - ANum 1] ).
       ++ apply hoare_asgn.
       ++  verify. rewrite t_update_eq in H. rewrite t_update_neq in H. omega.  
          apply TdiffX. 
@@ -703,11 +707,38 @@ induction z.
          rewrite t_update_eq in H. rewrite t_update_eq. rewrite t_update_neq.
          rewrite t_update_eq. rewrite t_update_neq in H. omega. 
          apply TdiffX. apply TdiffX.
-Qed.
+Qed. 
+
+Lemma t_update_aeval :
+  forall T st y,
+  aeval (T !-> y; st) (AId T) = y.
+
+Proof.
+  intros. simpl. rewrite t_update_eq. reflexivity. Qed.
+
+Lemma aeval_ANum : 
+  forall st z,
+  aeval st (ANum z) = z.
+
+Proof.
+  intros. simpl. reflexivity. Qed.
+
+Lemma aeval_Add : 
+  forall st X z,
+  aeval st (AId X + ANum z) = st X + z.
+
+Proof.
+  intros. simpl. reflexivity. Qed.
 
 
+Lemma mult_add:
+  forall x y z n,
+  x = ((n - 1) - z) * y -> 
+  x + y = (n - z) * y.
 
-
+Proof.
+  intros. repeat rewrite Nat.mul_sub_distr_r. rewrite Nat.mul_sub_distr_r in H.
+  Admitted.
 
 (* Undecorated Examples *)
 
@@ -717,14 +748,28 @@ Qed.
 
 forall x,y
 
-{ X = 0 }
-LOOP y DO
-X := X + x
+{ X = (4 - T) * 3} [T |-> 4]
+LOOP 4 DO
+forall z,
+{st X = (4 - T) * 3} [T |-> z + 1] ->>
+{st X = (5 - T) * 3} [T |-> z + 1] [X |-> X + 3]
+X := X + 3;
+{st X = (5 - T) * 3} [T |-> z + 1] ->>
+{st X = (4 - T) * 3} [T |-> z + 1] [T |-> z]
+T := T - 1
+{st X = (4 - T) * 3} [T |-> z]
 END.
-{ X = x*y }
+{ X = (4 - T) * 3 } [T |-> 0]
 
 *)
 
+(*
+t_update_eq
+t_update_neq
+t_update_shadow
+
+ {{Q [X |-> a]}} X ::= a {{Q}}.
+*)
 
 Theorem loop_mult :
 {{ (fun st => st X  = (4 - aeval st (AId T)) * 3) [ T |-> ANum 4] }} 
@@ -737,11 +782,51 @@ END
 
 Proof.
   intros. apply hoare_loop. induction z.
-  -  admit. (* unfold assn_sub. simpl. eapply hoare_seq.
-    + apply hoare_asgn.
-    + eapply hoare_asgn. *)
-  - unfold assn_sub. simpl.
-  Admitted.
+  - apply hoare_seq with ( Q := (fun st : string -> nat => (st X = (5 - (aeval st (AId T))) * 3)) [T |-> ANum 1]).
+    + apply hoare_consequence_pre with ( P' := (fun st : string -> nat => st X = (4 - aeval st (AId T)) * 3) [T |-> ANum 0] [T |-> AId T - ANum 1]).
+      * apply hoare_asgn.
+      * unfold assert_implies. unfold assn_sub. simpl. intros.
+        rewrite t_update_neq. rewrite t_update_neq.
+        rewrite t_update_neq in H. assumption.
+        apply TdiffX. apply TdiffX. apply TdiffX.
+    +  apply hoare_consequence_pre with (P' := (fun st : string -> nat => st X = (5 - aeval st (AId T)) * 3) [T |-> ANum 1] [X |-> AId X + ANum 3]).
+      * apply hoare_asgn.
+      * unfold assert_implies. unfold assn_sub. simpl. intros. 
+        unfold assn_sub in H. simpl in H. rewrite t_update_neq. rewrite t_update_eq.
+        rewrite t_update_neq in H. omega. 
+        apply TdiffX. apply TdiffX.
+  - clear IHz. apply hoare_seq with ( Q := (fun st : string -> nat => (st X = (5 - (aeval st (AId T))) * 3)) [T |-> ANum (S z + 1)]).
+    + apply hoare_consequence_pre with ( P' := (fun st : string -> nat => st X = (4 - aeval st (AId T)) * 3) [T |-> ANum (S z)] [T |-> AId T - ANum 1]).
+      * apply hoare_asgn.
+      * unfold assert_implies. unfold assn_sub. intros.
+        rewrite t_update_neq. rewrite t_update_neq. 
+        rewrite t_update_neq in H. rewrite t_update_aeval. rewrite aeval_ANum.
+        rewrite t_update_aeval in H. rewrite aeval_ANum in H. omega.
+        apply TdiffX. apply TdiffX. apply TdiffX.
+    +  apply hoare_consequence_pre with (P' := (fun st : string -> nat => st X = (5 - aeval st (AId T)) * 3) [T |-> ANum (S z + 1)] [X |-> AId X + ANum 3]).
+      * apply hoare_asgn.
+      * unfold assert_implies. unfold assn_sub. intros.
+        rewrite t_update_neq. rewrite t_update_eq.
+        rewrite t_update_neq in H. rewrite t_update_aeval. rewrite aeval_ANum.
+        rewrite t_update_aeval in H. rewrite aeval_ANum in H. rewrite aeval_Add.
+        apply mult_add. omega.
+        apply TdiffX. apply TdiffX.
+Qed.
+
+(*
+{X = (5-T)!} [T |-> 4]
+LOOP 4 DO 
+{X = (5-T)!} [T |-> z+1] ->>
+{X = (5-T)!} [T |-> z+1] [X |-> X * (5-T)]
+X ::= X * (5 - T)
+{X = (6-T)!} [T |-> z+1] ->>
+{X = (5-T)!} [T |-> z+1] [T |-> z]
+T ::= T  - 1
+{X = (5-T)!} [T |-> z]
+END
+{X = (5-T)!} [T |-> 0]
+
+*)
 
 Theorem loop_factorial :
 (* X ::= 1;; *)
@@ -753,7 +838,39 @@ END
 {{ (fun st => st X  = fact (5 - st T)) [T |-> ANum 0] }}.
 
 Proof.
-  Admitted.
+  intros. apply hoare_loop. induction z.
+  - apply hoare_seq with ( Q := (fun st : string -> nat => (st X = fact (6 - (aeval st (AId T))))) [T |-> ANum 1]).
+    + apply hoare_consequence_pre with ( P' := (fun st : string -> nat => st X = fact(5 - (st T))) [T |-> ANum 0] [T |-> AId T - ANum 1]).
+      * apply hoare_asgn.
+      * unfold assert_implies. unfold assn_sub. simpl. intros.
+        rewrite t_update_neq. rewrite t_update_neq.
+        rewrite t_update_neq in H. assumption.
+        apply TdiffX. apply TdiffX. apply TdiffX.
+    +  apply hoare_consequence_pre with (P' := (fun st : string -> nat => st X = fact (6 - aeval st (AId T))) [T |-> ANum 1] [X |-> AId X * (ANum 5 - AId T)]).
+      * apply hoare_asgn.
+      * unfold assert_implies. unfold assn_sub. intros. rewrite t_update_neq. 
+        rewrite t_update_eq.
+        rewrite aeval_ANum. rewrite t_update_aeval.
+        simpl in H. rewrite t_update_neq in H. admit. (* get stuck with a T left over *)
+        apply TdiffX. apply TdiffX.
+  - clear IHz. apply hoare_seq with ( Q := (fun st : string -> nat => (st X = fact (6 - (aeval st (AId T))))) [T |-> ANum (S z + 1)]).
+    + apply hoare_consequence_pre with ( P' := (fun st : string -> nat => st X = fact (5 - (st T))) [T |-> ANum (S z)] [T |-> AId T - ANum 1]).
+      * apply hoare_asgn.
+      * unfold assert_implies. unfold assn_sub. intros.
+        rewrite t_update_neq. rewrite t_update_neq. 
+        rewrite t_update_neq in H. rewrite t_update_eq. rewrite aeval_ANum.
+        rewrite t_update_aeval in H. rewrite aeval_ANum in H. rewrite Nat.add_1_r in H. rewrite H.
+        simpl. reflexivity.
+        apply TdiffX. apply TdiffX. apply TdiffX.
+    +  apply hoare_consequence_pre with (P' := (fun st : string -> nat => st X = fact (6 - aeval st (AId T))) [T |-> ANum (S z + 1)] [X |-> AId X * (ANum 5 - AId T)]).
+      * apply hoare_asgn.
+      * unfold assert_implies. unfold assn_sub. intros.
+        rewrite t_update_neq. rewrite t_update_eq.
+        rewrite t_update_aeval. rewrite aeval_ANum. rewrite Nat.add_1_r.
+        rewrite t_update_neq in H. rewrite aeval_ANum in H. rewrite t_update_eq in H. rewrite Nat.add_1_r in H.
+        unfold aeval. rewrite H. admit.
+        apply TdiffX. apply TdiffX.
+Admitted.
 
 (*
  forall z. {{P /\ t=z}} c {{P /\ t=z-1}}.
